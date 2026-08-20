@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Electron build output
+dist/
+out/
+
+# Electron source
+electron/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log
+.freebuff/
+
+# Temporary
+*.tmp
