@@ -193,7 +193,7 @@ App.addTxRow = function (type) {
         <option value="">— เลือกวัสดุ —</option>
         ${txItemOptions(type === 'issue')}
       </select>
-      <input class="input tx-barcode" type="text" placeholder="พิมพ์รหัสบาร์โค้ด" onfocus="this.value=''" onkeydown="if(event.key==='Enter'){event.preventDefault();App.searchByBarcode(this);}">
+      <input class="input tx-barcode" type="text" placeholder="พิมพ์รหัสบาร์โค้ด" oninput="App.onBarcodeInput(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();App.searchByBarcode(this);}">
       <button type="button" class="btn btn-outline btn-sm" onclick="App.scanToSelectItem(this)" title="สแกนบาร์โค้ดวัสดุ">${icon('camera', 14)}</button>
     </div>
     ${serialCol}
@@ -684,6 +684,22 @@ App.openScanner = function () {
 };
 
 /* ค้นหาวัสดุด้วยรหัสบาร์โค้ด (พิมพ์เอง) */
+/* ตรวจจับ barcode scanner ด้วย debounce — ล้างค่าเก่าอัตโนมัติ */
+App._barcodeTimers = {};
+App.onBarcodeInput = function (inputEl) {
+  const row = inputEl.closest('.tx-row');
+  const rowId = row ? (row.dataset.id || 'row0') : 'row0';
+  // ล้าง timer เดิม
+  if (App._barcodeTimers[rowId]) clearTimeout(App._barcodeTimers[rowId]);
+  // ถ้า input ยาว ≥8 ตัวอักษร (ดูเหมือนบาร์โค้ด) ให้รอ 300ms แล้วประมวลผล
+  const val = (inputEl.value || '').trim();
+  if (val.length >= 8) {
+    App._barcodeTimers[rowId] = setTimeout(() => {
+      App.searchByBarcode(inputEl);
+    }, 300);
+  }
+};
+
 App.searchByBarcode = function (inputEl) {
   const code = (inputEl.value || '').trim();
   if (!code) return;
