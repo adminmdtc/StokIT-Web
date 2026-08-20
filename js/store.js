@@ -101,7 +101,7 @@ function buildSeed() {
   });
 
   const users = [
-    { id: 'u1', username: 'admin', password: hashStr('admin123'), name: 'ผู้ดูแลระบบ',     role: 'admin' },
+    { id: 'u1', username: 'Admin001', password: hashStr('14197'), name: 'ผู้ดูแลระบบ',     role: 'admin' },
     { id: 'u2', username: 'user',  password: hashStr('user123'),  name: 'เจ้าหน้าที่พัสดุ', role: 'user' },
   ];
 
