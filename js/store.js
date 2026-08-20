@@ -268,7 +268,7 @@ const Store = {
   categories() {
     const set = new Set();
     this.db.items.forEach(i => { if (i.category) set.add(i.category); });
-    return [...set].sort((a, b) => a.localeCompare(b, 'th'));
+    return [...set].sort((a, b) => a.localeCompare(b, 'th-TH', { sensitivity: 'base' }));
   },
   departments() {
     const set = new Set();
