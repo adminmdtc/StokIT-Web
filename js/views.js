@@ -915,21 +915,7 @@ function itemModal(item) {
       <div class="field"><label>ชื่อวัสดุ *</label><input class="input" id="if-name" value="${esc(item ? item.name : '')}" placeholder="เช่น เมาส์ไร้สาย Logitech" required></div>
       <div class="field"><label>หมวดหมู่ *</label><input class="input" id="if-cat" list="cat-list" value="${esc(item ? item.category : '')}" placeholder="เลือกหรือพิมพ์หมวดหมู่" required>
         <datalist id="cat-list">${catList}</datalist></div>
-      <div class="field"><label>ภารกิจ</label>
-        <select id="if-mission" class="input" onchange="App.onItemMissionChange()">
-          <option value="">— เลือกภารกิจ —</option>
-          ${missionOptions}
-        </select></div>
-      <div class="field"><label>กลุ่มงาน</label>
-        <select id="if-group" class="input" onchange="App.onItemGroupChange()">
-          <option value="">— เลือกกลุ่มงาน —</option>
-          ${groupOptions}
-        </select></div>
-      <div class="field hidden" id="if-unit-wrap"><label>งาน</label>
-        <select id="if-work-unit" class="input">
-          <option value="">— เลือกงาน —</option>
-          ${selectedGroup ? getGroupUnits(selectedGroup).map(u => `<option value="${esc(u)}" ${item && item.workUnit === u ? 'selected' : ''}>${esc(u)}</option>`).join('') : ''}
-        </select></div>
+
       <div class="field"><label>หน่วยนับ *</label><input class="input" id="if-unit" value="${esc(item ? item.unit : '')}" placeholder="ตัว / เครื่อง / เส้น" required></div>
 
       <div class="field"><label>จำนวนขั้นต่ำ (เตือนเมื่อใกล้หมด)</label><input class="input" id="if-min" type="number" min="0" step="1" value="${item ? item.minStock : 0}"></div>
@@ -972,9 +958,9 @@ App.saveItem = function (id) {
   if (!name || !category || !unit) { toast('กรุณากรอกชื่อ หมวดหมู่ และหน่วยนับให้ครบ', 'error'); return; }
   const data = {
     name, category, unit,
-    mission: $('#if-mission').value,
-    group: $('#if-group').value,
-    workUnit: $('#if-work-unit') ? $('#if-work-unit').value : '',
+    mission: '',
+    group: '',
+    workUnit: '',
     price: 0,
     minStock: Number($('#if-min').value) || 0,
     location: $('#if-loc').value.trim(),
