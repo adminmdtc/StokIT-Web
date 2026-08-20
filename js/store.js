@@ -124,7 +124,29 @@ const Store = {
     this.save();
     return this.db;
   },
-  save() { localStorage.setItem(DB_KEY, JSON.stringify(this.db)); },
+
+  /* โหลดข้อมูลจาก Firebase (ถ้ามี) */
+  async loadFromFirebase() {
+    if (typeof FirebaseDB !== 'undefined' && FirebaseDB.connected) {
+      try {
+        const success = await FirebaseDB.syncFromFirebase();
+        if (success) {
+          console.log('Loaded data from Firebase');
+          return true;
+        }
+      } catch (e) {
+        console.error('Load from Firebase error:', e);
+      }
+    }
+    return false;
+  },
+  save() {
+    localStorage.setItem(DB_KEY, JSON.stringify(this.db));
+    // Auto sync to Firebase
+    if (typeof autoSyncToFirebase === 'function') {
+      autoSyncToFirebase();
+    }
+  },
   reset() {
     localStorage.removeItem(DB_KEY);
     localStorage.removeItem(SESSION_KEY);

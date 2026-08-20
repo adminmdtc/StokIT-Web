@@ -100,10 +100,38 @@ function bindSidebar() {
   document.querySelector('.user-card').addEventListener('click', () => App.openChangePw());
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+/* ============================================================
+   Firebase Initialization
+   ============================================================ */
+async function initFirebase() {
+  // โหลด config
+  const config = FirebaseDB.loadConfig();
+  if (config && config.apiKey) {
+    // เชื่อมต่อ Firebase
+    const connected = await FirebaseDB.connect();
+    if (connected) {
+      console.log('Firebase connected on startup');
+      
+      // ซิงค์ข้อมูลจาก Firebase
+      await FirebaseDB.syncFromFirebase();
+      
+      // ฟังการเปลี่ยนแปลงแบบ real-time
+      FirebaseDB.onChanges((data) => {
+        console.log('Firebase real-time update received');
+        // รีเฟรชหน้าปัจจุบัน
+        route();
+      });
+    }
+  }
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
   Store.load();
   bindLogin();
   bindSidebar();
   window.addEventListener('hashchange', route);
   route();
+  
+  // เริ่มต้น Firebase
+  await initFirebase();
 });

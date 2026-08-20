@@ -1295,7 +1295,51 @@ App.doImportItems = async function () {
    ============================================================ */
 function renderSettings() {
   const cfg = Telegram.getConfig();
+  const fbCfg = (typeof FirebaseDB !== 'undefined' && FirebaseDB.config) ? FirebaseDB.config : {};
+  const fbConnected = (typeof FirebaseDB !== 'undefined' && FirebaseDB.connected);
+  
   return `
+  <div class="card">
+    <div class="card-head"><div><h3>🔗 เชื่อมต่อ Firebase (ซิงค์ข้อมูลหลายเครื่อง)</h3>
+      <p class="muted small">เชื่อมต่อ Firebase Realtime Database เพื่อให้ข้อมูลซิงค์ระหว่าง PC, iPad และมือถืออัตโนมัติ</p></div></div>
+    <div style="margin-bottom:15px">
+      ${fbConnected ? '<span class="badge badge-success">✅ เชื่อมต่อแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่เชื่อมต่อ</span>'}
+    </div>
+    <form id="fb-form" class="form-grid" onsubmit="return false">
+      <div class="field full">
+        <label>API Key</label>
+        <input class="input" id="fb-apikey" type="password" value="${esc(fbCfg.apiKey || '')}" placeholder="AIzaSy...">
+      </div>
+      <div class="field full">
+        <label>Auth Domain</label>
+        <input class="input" id="fb-authdomain" value="${esc(fbCfg.authDomain || '')}" placeholder="your-project.firebaseapp.com">
+      </div>
+      <div class="field full">
+        <label>Database URL</label>
+        <input class="input" id="fb-dburl" value="${esc(fbCfg.databaseURL || '')}" placeholder="https://your-project-default-rtdb.firebaseio.com">
+      </div>
+      <div class="field full">
+        <label>Project ID</label>
+        <input class="input" id="fb-projectid" value="${esc(fbCfg.projectId || '')}" placeholder="your-project-id">
+      </div>
+    </form>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="App.saveFirebaseConfig()">${icon('check', 16)} บันทึกและเชื่อมต่อ</button>
+      <button class="btn btn-outline" onclick="App.testFirebase()">${icon('send', 16)} ทดสอบการเชื่อมต่อ</button>
+      <button class="btn btn-soft" onclick="App.syncNow()">${icon('refresh', 16)} ซิงค์ข้อมูลเดี๋ยวนี้</button>
+      ${fbConnected ? `<button class="btn btn-danger" onclick="App.disconnectFirebase()">${icon('x', 16)} ยกเลิกการเชื่อมต่อ</button>` : ''}
+    </div>
+    <div class="muted small" style="margin-top:10px">
+      <strong>วิธีตั้งค่า Firebase:</strong>
+      <ol style="margin:5px 0;padding-left:20px">
+        <li>ไปที่ <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
+        <li>สร้าง Project ใหม่ (หรือใช้ project ที่มีอยู่)</li>
+        <li>เปิด <strong>Realtime Database</strong> → Create Database → Start in test mode</li>
+        <li>ไปที่ Project Settings → General → คัดลอก Config มาใส่ด้านบน</li>
+      </ol>
+    </div>
+  </div>
+
   <div class="card">
     <div class="card-head"><div><h3>ตั้งค่าระบบแจ้งเตือน Telegram</h3>
       <p class="muted small">เชื่อมต่อ Telegram เพื่อรับแจ้งเตือนเมื่อมีการรับเข้า/จำหน่ายวัสดุ หรือวัสดุใกล้หมด</p></div></div>
@@ -1370,6 +1414,93 @@ App.sendDailySummary = async function () {
   toast('ส่งสรุปยอดเรียบร้อย', 'success');
 };
 
+/* ============================================================
+   Firebase Functions
+   ============================================================ */
+
+App.saveFirebaseConfig = async function () {
+  const config = {
+    apiKey: document.getElementById('fb-apikey').value.trim(),
+    authDomain: document.getElementById('fb-authdomain').value.trim(),
+    databaseURL: document.getElementById('fb-dburl').value.trim(),
+    projectId: document.getElementById('fb-projectid').value.trim(),
+  };
+
+  if (!config.apiKey || !config.databaseURL) {
+    toast('กรุณากรอก API Key และ Database URL', 'error');
+    return;
+  }
+
+  // บันทึก config
+  FirebaseDB.saveConfig(config);
+
+  // เชื่อมต่อ
+  const connected = await FirebaseDB.connect();
+  if (connected) {
+    toast('เชื่อมต่อ Firebase สำเร็จ!', 'success');
+    // ซิงค์ข้อมูล
+    await FirebaseDB.syncToFirebase();
+    // ฟังการเปลี่ยนแปลง
+    FirebaseDB.onChanges((data) => {
+      console.log('Firebase data changed, refreshing...');
+      route();
+    });
+  } else {
+    toast('เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ Config', 'error');
+  }
+  route();
+};
+
+App.testFirebase = async function () {
+  const config = {
+    apiKey: document.getElementById('fb-apikey').value.trim(),
+    authDomain: document.getElementById('fb-authdomain').value.trim(),
+    databaseURL: document.getElementById('fb-dburl').value.trim(),
+    projectId: document.getElementById('fb-projectid').value.trim(),
+  };
+
+  if (!config.apiKey || !config.databaseURL) {
+    toast('กรุณากรอก API Key และ Database URL', 'error');
+    return;
+  }
+
+  // บันทึก config ชั่วคราว
+  FirebaseDB.saveConfig(config);
+  const connected = await FirebaseDB.connect();
+
+  if (connected) {
+    const result = await FirebaseDB.testConnection();
+    if (result.success) {
+      toast('ทดสอบสำเร็จ! Firebase พร้อมใช้งาน', 'success');
+    } else {
+      toast('เชื่อมต่อได้แต่มีปัญหา: ' + result.error, 'error');
+    }
+  } else {
+    toast('เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ Config', 'error');
+  }
+};
+
+App.syncNow = async function () {
+  if (!FirebaseDB.connected) {
+    toast('กรุณาเชื่อมต่อ Firebase ก่อน', 'error');
+    return;
+  }
+
+  toast('กำลังซิงค์ข้อมูล...', 'info');
+  await FirebaseDB.syncToFirebase();
+  toast('ซิงค์ข้อมูลเรียบร้อย!', 'success');
+};
+
+App.disconnectFirebase = function () {
+  FirebaseDB.disconnect();
+  FirebaseDB.clearConfig();
+  toast('ยกเลิกการเชื่อมต่อ Firebase แล้ว', 'info');
+  route();
+};
+
+/* ============================================================
+   ตารางเส้นทาง (views)
+   ============================================================ */
 /* ============================================================
    ตารางเส้นทาง (views)
    ============================================================ */
