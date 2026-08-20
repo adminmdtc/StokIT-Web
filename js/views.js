@@ -674,12 +674,12 @@ App.scanEnter = function (ev) {
 App._stockScanTimer = null;
 App.onStockSearchInput = function (el) {
   App.filterStock();
-  const val = (el.value || '').trim();
   if (App._stockScanTimer) clearTimeout(App._stockScanTimer);
-  if (val.length >= 8) {
-    /* ถ้ายาว ≥8 ตัวอักษร น่าจะเป็นบาร์โค้ด — รอ 300ms แล้วประมวลผล */
-    App._stockScanTimer = setTimeout(() => { handleScanResult(val); }, 300);
-  }
+  /* อ่านค่า ณ เวลาที่ timer ทำงาน — ป้องกันค่าค้างจาก scanner */
+  App._stockScanTimer = setTimeout(() => {
+    const val = (el.value || '').trim();
+    if (val.length >= 8) handleScanResult(val);
+  }, 300);
 };
 
 App.stopScanner = function () {
