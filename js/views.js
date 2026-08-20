@@ -301,7 +301,9 @@ App.submitIssue = function (ev) {
   let receiver = $('#is-receiver') ? $('#is-receiver').value : '';
   if (receiver === 'other') receiver = $('#is-receiver-custom') ? $('#is-receiver-custom').value.trim() : '';
   else receiver = receiver.trim();
-  const partyRx = $('#is-party-rx') ? $('#is-party-rx').value.trim() : '';
+  let partyRx = $('#is-party-rx') ? $('#is-party-rx').value : '';
+  if (partyRx === 'other') partyRx = $('#is-party-rx-custom') ? $('#is-party-rx-custom').value.trim() : '';
+  else partyRx = partyRx.trim();
   const party = receiver || partyRx || unitVal || groupName || missionName;
   const note = $('#is-note').value.trim();
   if (!missionId) { toast('กรุณาเลือกภารกิจ', 'error'); return; }
@@ -546,7 +548,13 @@ App.delTx = function (id) {
         <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้เบิก">
       </div>
       <div class="field"><label>ผู้รับ *</label>
-        <input id="${idP}-party-rx" class="input" placeholder="ชื่อผู้รับ/หน่วยงาน" required></div>
+        <select id="${idP}-party-rx" class="input" required onchange="document.getElementById('${idP}-party-rx-custom').classList.toggle('hidden', this.value !== 'other')">
+          <option value="">— เลือกผู้รับ —</option>
+          ${typeof RECEIVER_NAMES !== 'undefined' ? RECEIVER_NAMES.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') : ''}
+          <option value="other">... พิมพ์เอง</option>
+        </select>
+        <input id="${idP}-party-rx-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้รับ">
+      </div>
       <div class="field"><label>หมายเหตุ</label>
         <textarea id="${idP}-note" class="input" rows="2" placeholder="ระบุรายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
       <div class="form-actions">
