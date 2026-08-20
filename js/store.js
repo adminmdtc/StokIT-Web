@@ -102,7 +102,7 @@ function buildSeed() {
 
   const users = [
     { id: 'u1', username: 'Admin001', password: hashStr('14197'), name: 'ผู้ดูแลระบบ',     role: 'admin' },
-    { id: 'u2', username: 'user',  password: hashStr('user123'),  name: 'เจ้าหน้าที่พัสดุ', role: 'user' },
+    { id: 'u2', username: 'user',  password: hashStr('14197'),  name: 'เจ้าหน้าที่พัสดุ', role: 'user' },
   ];
 
   return { items, transactions, users, seq: { item: 49, receive: rcvNo - 1, issue: 0 } };
