@@ -614,7 +614,7 @@ function renderStock() {
   ${deptBanner}
   <div class="card">
     <div class="toolbar">
-      <div class="search-box">${icon('search', 16)}<input class="input" id="st-search" placeholder="ค้นหา หรือสแกนบาร์โค้ด..." oninput="App.filterStock()" onkeydown="App.scanEnter(event)"></div>
+      <div class="search-box">${icon('search', 16)}<input class="input" id="st-search" placeholder="ค้นหา หรือสแกนบาร์โค้ด..." oninput="App.onStockSearchInput(this)" onkeydown="App.scanEnter(event)"></div>
       <button class="btn btn-outline" onclick="App.openScanner()" title="สแกน QR ด้วยกล้อง">${icon('camera', 16)} สแกน QR</button>
       <select class="input" id="st-cat" style="width:200px" onchange="App.filterStock()">
         <option value="">ทุกหมวดหมู่</option>
@@ -647,7 +647,12 @@ function handleScanResult(raw) {
     search.value = code;
     App.filterStock();
   }
-  if (!it) { toast(`ไม่พบวัสดุ รหัส "${esc(code)}"`, 'error'); return; }
+  if (!it) {
+    toast(`ไม่พบวัสดุ รหัส "${esc(code)}"`, 'error');
+    /* ล้างค่าอัตโนมัติแล้ว focus กลับมาช่องค้นหา */
+    if (search) { setTimeout(() => { search.value = ''; search.focus(); }, 300); }
+    return;
+  }
   const row = document.querySelector('#st-body tr[data-id="' + it.id + '"]');
   if (row) {
     row.classList.remove('row-flash');
@@ -657,10 +662,24 @@ function handleScanResult(raw) {
     setTimeout(() => row.classList.remove('row-flash'), 3400);
   }
   toast(`พบวัสดุ: ${it.name} (${it.code})`);
+  /* ล้างค่าอัตโนมัติแล้ว focus กลับมาช่องค้นหาสำหรับสแกนต่อ */
+  if (search) { setTimeout(() => { search.value = ''; search.focus(); }, 500); }
 }
 
 App.scanEnter = function (ev) {
   if (ev.key === 'Enter') { ev.preventDefault(); handleScanResult(ev.target.value); }
+};
+
+/* auto-detect USB barcode scanner ในหน้าคงเหลือ */
+App._stockScanTimer = null;
+App.onStockSearchInput = function (el) {
+  App.filterStock();
+  const val = (el.value || '').trim();
+  if (App._stockScanTimer) clearTimeout(App._stockScanTimer);
+  if (val.length >= 8) {
+    /* ถ้ายาว ≥8 ตัวอักษร น่าจะเป็นบาร์โค้ด — รอ 300ms แล้วประมวลผล */
+    App._stockScanTimer = setTimeout(() => { handleScanResult(val); }, 300);
+  }
 };
 
 App.stopScanner = function () {
