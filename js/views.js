@@ -703,9 +703,29 @@ function startScannerForSelect(selectEl) {
     return;
   }
   window.__scanner = new Html5Qrcode('qr-reader-scan');
+  
+  // แสดงสถานะการสแกน
+  el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
+  
   window.__scanner.start(
     { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 220, height: 220 } },
+    {
+      fps: 15,
+      qrbox: { width: 300, height: 150 },
+      aspectRatio: 1.5,
+      disableFlip: false,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.CODABAR,
+      ]
+    },
     text => {
       App.stopScanner();
       closeModal();
@@ -718,7 +738,8 @@ function startScannerForSelect(selectEl) {
       toast(`พบวัสดุ: ${it.name} (${it.code})`);
     },
     () => {}
-  ).catch(() => {
+  ).catch(err => {
+    console.error('Scanner error:', err);
     window.__scanner = null;
     el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง</span></div>`;
   });
@@ -732,12 +753,33 @@ function startScanner() {
     return;
   }
   window.__scanner = new Html5Qrcode('qr-reader');
+  
+  // แสดงสถานะการสแกน
+  el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
+  
   window.__scanner.start(
     { facingMode: 'environment' },
-    { fps: 10, qrbox: { width: 220, height: 220 } },
+    {
+      fps: 15,
+      qrbox: { width: 300, height: 150 },
+      aspectRatio: 1.5,
+      disableFlip: false,
+      formatsToSupport: [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E,
+        Html5QrcodeSupportedFormats.ITF,
+        Html5QrcodeSupportedFormats.CODABAR,
+      ]
+    },
     text => { App.stopScanner(); closeModal(); handleScanResult(text); },
     () => { /* ข้าม error รายเฟรม */ }
-  ).catch(() => {
+  ).catch(err => {
+    console.error('Scanner error:', err);
     window.__scanner = null;
     el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง หรือใช้เครื่องสแกนบาร์โค้ดแทน</span></div>`;
   });
