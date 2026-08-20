@@ -168,7 +168,10 @@ const Store = {
   },
 
   addItem(data) {
-    const it = Object.assign({ id: uid('it'), code: this.nextItemCode(), category: '', unit: '', minStock: 0, location: '', note: '', mission: '', group: '', workUnit: '' }, data);
+    const defaults = { id: uid('it'), code: this.nextItemCode(), category: '', unit: '', minStock: 0, location: '', note: '', mission: '', group: '', workUnit: '' };
+    const it = Object.assign(defaults, data);
+    /* ถ้าไม่มี code ให้สร้างอัตโนมัติ */
+    if (!it.code || it.code === '') it.code = this.nextItemCode();
     this.db.items.push(it);
     this.save();
     return it;

@@ -911,7 +911,12 @@ function itemModal(item) {
   const groupOptions = groups.map(g => `<option value="${g.id}" ${selectedGroup === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
   openModal(modalShell(isEdit ? 'แก้ไขวัสดุ' : 'เพิ่มวัสดุใหม่',
     `<form id="item-form" class="form-grid" onsubmit="return false">
-      <div class="field"><label>รหัสวัสดุ</label><input class="input" value="${isEdit ? esc(item.code) : 'สร้างอัตโนมัติ'}" disabled></div>
+      <div class="field"><label>รหัสวัสดุ</label>
+        ${isEdit 
+          ? `<input class="input" value="${esc(item.code)}" disabled>` 
+          : `<input class="input" id="if-code" value="" placeholder="พิมพ์หรือสแกนบาร์โค้ด" oninput="document.getElementById('if-auto-code').checked = this.value.trim() === ''">
+            <label class="check mt-1"><input type="checkbox" id="if-auto-code" checked onchange="if(this.checked){document.getElementById('if-code').value=''}"> สร้างอัตโนมัติ (ไม่มีบาร์โค้ด)</label>`}
+      </div>
       <div class="field"><label>ชื่อวัสดุ *</label><input class="input" id="if-name" value="${esc(item ? item.name : '')}" placeholder="เช่น เมาส์ไร้สาย Logitech" required></div>
       <div class="field"><label>หมวดหมู่ *</label><input class="input" id="if-cat" list="cat-list" value="${esc(item ? item.category : '')}" placeholder="เลือกหรือพิมพ์หมวดหมู่" required>
         <datalist id="cat-list">${catList}</datalist></div>
@@ -956,6 +961,17 @@ App.saveItem = function (id) {
   const category = $('#if-cat').value.trim();
   const unit = $('#if-unit').value.trim();
   if (!name || !category || !unit) { toast('กรุณากรอกชื่อ หมวดหมู่ และหน่วยนับให้ครบ', 'error'); return; }
+  /* รหัสวัสดุ: ใช้บาร์โค้ดที่สแกน หรือสร้างอัตโนมัติ */
+  let code = '';
+  const autoCode = document.getElementById('if-auto-code');
+  const codeInput = document.getElementById('if-code');
+  if (!id) { /* เพิ่มใหม่เท่านั้น */
+    if (autoCode && autoCode.checked) {
+      code = ''; /* จะให้ store สร้างให้ */
+    } else if (codeInput && codeInput.value.trim()) {
+      code = codeInput.value.trim();
+    }
+  }
   const data = {
     name, category, unit,
     mission: '',
@@ -967,6 +983,7 @@ App.saveItem = function (id) {
     note: $('#if-note').value.trim(),
     trackSerial: !!document.getElementById('if-serial').checked,
   };
+  if (code) data.code = code;
   if (id && !data.trackSerial) {
     const serials = Store.serialMap()[id] || {};
     if (Object.values(serials).some(x => x.receive && !x.issue)) {
