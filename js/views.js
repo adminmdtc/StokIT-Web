@@ -1620,7 +1620,6 @@ const Views = {
     render: () => renderTxForm('issue') + renderTxHistory('issue'),
     init: () => App.addTxRow('issue'),
   },
-  departments: { title: 'กลุ่มงาน', sub: 'ภารกิจและกลุ่มงานทั้งหมด', render: renderDepartments },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
   users: { title: 'ผู้ใช้งาน', sub: 'จัดการบัญชีและสิทธิ์การใช้งาน', render: renderUsers },
