@@ -108,6 +108,7 @@ textarea.input { resize: vertical; min-height: 52px; }
 .tx-row.issue { grid-template-columns: 1.6fr .55fr auto; }
 .tx-item-wrap { display: flex; gap: 6px; align-items: center; }
 .tx-item-wrap select { flex: 1; }
+.tx-item-wrap .tx-barcode { width: 140px; flex: none; font-size: 12px; }
 .tx-row .tx-serial { display: none; }
 .tx-row.tracked .tx-qty { display: none; }
 .tx-row.tracked .tx-serial { display: block; }

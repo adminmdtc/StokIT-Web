@@ -193,6 +193,7 @@ App.addTxRow = function (type) {
         <option value="">— เลือกวัสดุ —</option>
         ${txItemOptions(type === 'issue')}
       </select>
+      <input class="input tx-barcode" type="text" placeholder="พิมพ์รหัสบาร์โค้ด" onkeydown="if(event.key==='Enter'){event.preventDefault();App.searchByBarcode(this);}">
       <button type="button" class="btn btn-outline btn-sm" onclick="App.scanToSelectItem(this)" title="สแกนบาร์โค้ดวัสดุ">${icon('camera', 14)}</button>
     </div>
     ${serialCol}
@@ -680,6 +681,23 @@ App.openScanner = function () {
     </div>`, { noDismiss: true });
   startScanner();
   return modal;
+};
+
+/* ค้นหาวัสดุด้วยรหัสบาร์โค้ด (พิมพ์เอง) */
+App.searchByBarcode = function (inputEl) {
+  const code = (inputEl.value || '').trim();
+  if (!code) return;
+  const row = inputEl.closest('.tx-row');
+  const select = row.querySelector('.tx-item');
+  const it = Store.items().find(i => i.code.toUpperCase() === code.toUpperCase() || i.id === code);
+  if (!it) {
+    toast(`ไม่พบรหัสวัสดุ "${esc(code)}"`, 'error');
+    return;
+  }
+  select.value = it.id;
+  App.onTxItemChange(select);
+  inputEl.value = '';
+  toast(`พบวัสดุ: ${it.name} (${it.code})`, 'success');
 };
 
 App.scanToSelectItem = function (btn) {
