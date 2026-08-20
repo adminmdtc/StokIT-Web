@@ -298,14 +298,17 @@ App.submitIssue = function (ev) {
     if (unitVal === 'other') unitVal = $('#is-unit-custom').value.trim();
   }
   const missionName = getMissionName(missionId);
-  const receiver = $('#is-receiver') ? $('#is-receiver').value.trim() : '';
-  const party = receiver || unitVal || groupName || missionName;
+  let receiver = $('#is-receiver') ? $('#is-receiver').value : '';
+  if (receiver === 'other') receiver = $('#is-receiver-custom') ? $('#is-receiver-custom').value.trim() : '';
+  else receiver = receiver.trim();
+  const partyRx = $('#is-party-rx') ? $('#is-party-rx').value.trim() : '';
+  const party = receiver || partyRx || unitVal || groupName || missionName;
   const note = $('#is-note').value.trim();
   if (!missionId) { toast('กรุณาเลือกภารกิจ', 'error'); return; }
   if (!groupId && !groupName) { toast('กรุณาเลือกกลุ่มงาน', 'error'); return; }
   const lines = collectTxLines('issue');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId };
+  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, partyRx, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId };
   Store.addTransaction(tx);
   toast(`บันทึกจำหน่ายเรียบร้อย ${tx.no}`);
   Telegram.notifyIssue(tx);
@@ -532,8 +535,18 @@ App.delTx = function (id) {
           return `<option value="${esc(x.serial)}">[${esc(it ? it.code : '')}] ${esc(it ? it.name : '')}</option>`;
         }).join('')}</datalist>` : ''}
       </div>
-      <div class="field"><label>ผู้เบิก / ผู้รับ *</label>
-        <input id="${idP}-receiver" class="input" placeholder="ชื่อผู้เบิก/ผู้รับวัสดุ" required></div>
+      <div class="field"><label>ผู้เบิก *</label>
+        <select id="${idP}-receiver" class="input" required onchange="document.getElementById('${idP}-receiver-custom').classList.toggle('hidden', this.value !== 'other')">
+          <option value="">— เลือกผู้เบิก —</option>
+          <option value="นายพีรพัฒน์ ชัยวัฒน์ทวี">นายพีรพัฒน์ ชัยวัฒน์ทวี</option>
+          <option value="นายชวนากร เงินใส">นายชวนากร เงินใส</option>
+          <option value="นายนิรุชา ทรัพย์สุวาณิชย์">นายนิรุชา ทรัพย์สุวาณิชย์</option>
+          <option value="other">... พิมพ์เอง</option>
+        </select>
+        <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้เบิก">
+      </div>
+      <div class="field"><label>ผู้รับ *</label>
+        <input id="${idP}-party-rx" class="input" placeholder="ชื่อผู้รับ/หน่วยงาน" required></div>
       <div class="field"><label>หมายเหตุ</label>
         <textarea id="${idP}-note" class="input" rows="2" placeholder="ระบุรายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
       <div class="form-actions">

@@ -111,7 +111,7 @@ function exportTxDoc(txId) {
   const isRcv = tx.type === 'receive';
   const docName = isRcv ? 'ใบรับเข้าวัสดุ' : 'ใบเบิกวัสดุ';
   const totalQty = tx.items.reduce((s, l) => s + l.qty, 0);
-  const partyLabel = 'ผู้รับ / หน่วยงานที่เบิก';
+  const partyLabel = isRcv ? 'ผู้ส่ง / ผู้จำหน่าย' : 'กลุ่มงาน / ภารกิจ';
   const sigs = isRcv ? ['ผู้ส่งมอบ', 'ผู้รับของ', 'ผู้ตรวจรับ'] : ['ผู้เบิก', 'ผู้จ่ายวัสดุ', 'ผู้อนุมัติ'];
 
   const headCols = '<th class="pr-num">ลำดับ</th><th>รายการวัสดุ</th><th>รหัส</th><th>หน่วย</th><th class="pr-num">จำนวน</th>';
@@ -135,6 +135,8 @@ function exportTxDoc(txId) {
     <div class="doc-title">${docName}</div>
     <table class="doc-info">
       <tr><td class="doc-info-label">${partyLabel}</td><td><strong>${esc(tx.party)}</strong></td></tr>
+      ${!isRcv && tx.receiver ? `<tr><td class="doc-info-label">ผู้เบิก</td><td><strong>${esc(tx.receiver)}</strong></td></tr>` : ''}
+      ${!isRcv && tx.partyRx ? `<tr><td class="doc-info-label">ผู้รับ</td><td><strong>${esc(tx.partyRx)}</strong></td></tr>` : ''}
       <tr><td class="doc-info-label">วันที่</td><td>${fmtDate(tx.date)}</td></tr>
       <tr><td class="doc-info-label">ผู้บันทึก</td><td>${esc(tx.byName)}</td></tr>
     </table>
