@@ -534,24 +534,27 @@ App.delTx = function (id) {
           return `<option value="${esc(x.serial)}">[${esc(it ? it.code : '')}] ${esc(it ? it.name : '')}</option>`;
         }).join('')}</datalist>` : ''}
       </div>
-      <div class="field"><label>ผู้เบิก *</label>
-        <select id="${idP}-receiver" class="input" required onchange="document.getElementById('${idP}-receiver-custom').classList.toggle('hidden', this.value !== 'other')">
-          <option value="">— เลือกผู้เบิก —</option>
-          <option value="นายพีรพัฒน์ ชัยวัฒน์ทวี">นายพีรพัฒน์ ชัยวัฒน์ทวี</option>
-          <option value="นายชวนากร เงินใส">นายชวนากร เงินใส</option>
-          <option value="นายนิรุชา ทรัพย์สุวาณิชย์">นายนิรุชา ทรัพย์สุวาณิชย์</option>
-          <option value="other">... พิมพ์เอง</option>
-        </select>
-        <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้เบิก">
-      </div>
-      <div class="field"><label>ผู้รับ *</label>
-        <select id="${idP}-party-rx" class="input" required onchange="document.getElementById('${idP}-party-rx-custom').classList.toggle('hidden', this.value !== 'other')">
-          <option value="">— เลือกผู้รับ —</option>
-          ${typeof RECEIVER_NAMES !== 'undefined' ? RECEIVER_NAMES.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') : ''}
-          <option value="other">... พิมพ์เอง</option>
-        </select>
-        <input id="${idP}-party-rx-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้รับ">
-      </div>
+      ${isRcv 
+        ? `<div class="field"><label>บันทึกข้อมูลรับเข้าวัสดุ *</label>
+            <input id="${idP}-receiver" class="input" placeholder="ชื่อผู้บันทึกข้อมูลรับเข้า"></div>`
+        : `<div class="field"><label>ผู้เบิก *</label>
+            <select id="${idP}-receiver" class="input" required onchange="document.getElementById('${idP}-receiver-custom').classList.toggle('hidden', this.value !== 'other')">
+              <option value="">— เลือกผู้เบิก —</option>
+              <option value="นายพีรพัฒน์ ชัยวัฒน์ทวี">นายพีรพัฒน์ ชัยวัฒน์ทวี</option>
+              <option value="นายชวนากร เงินใส">นายชวนากร เงินใส</option>
+              <option value="นายนิรุชา ทรัพย์สุวาณิชย์">นายนิรุชา ทรัพย์สุวาณิชย์</option>
+              <option value="other">... พิมพ์เอง</option>
+            </select>
+            <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้เบิก">
+          </div>
+          <div class="field"><label>ผู้รับ *</label>
+            <select id="${idP}-party-rx" class="input" required onchange="document.getElementById('${idP}-party-rx-custom').classList.toggle('hidden', this.value !== 'other')">
+              <option value="">— เลือกผู้รับ —</option>
+              ${typeof RECEIVER_NAMES !== 'undefined' ? RECEIVER_NAMES.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') : ''}
+              <option value="other">... พิมพ์เอง</option>
+            </select>
+            <input id="${idP}-party-rx-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้รับ">
+          </div>`}
       <div class="field"><label>หมายเหตุ</label>
         <textarea id="${idP}-note" class="input" rows="2" placeholder="ระบุรายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
       <div class="form-actions">
