@@ -268,10 +268,11 @@ App.submitReceive = function (ev) {
   const me = Auth.current();
   const date = $('#rv-date').value || todayStr();
   const party = $('#rv-party').value.trim();
+  const receiver = $('#rv-receiver') ? $('#rv-receiver').value.trim() : '';
   const note = $('#rv-note').value.trim();
   const lines = collectTxLines('receive');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, note, by: me.id, byName: me.name, items: lines };
+  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, receiver, note, by: me.id, byName: me.name, items: lines };
   Store.addTransaction(tx);
   toast(`บันทึกรับเข้าเรียบร้อย ${tx.no}`);
   Telegram.notifyReceive(tx);
@@ -297,13 +298,14 @@ App.submitIssue = function (ev) {
     if (unitVal === 'other') unitVal = $('#is-unit-custom').value.trim();
   }
   const missionName = getMissionName(missionId);
-  const party = unitVal || groupName || missionName;
+  const receiver = $('#is-receiver') ? $('#is-receiver').value.trim() : '';
+  const party = receiver || unitVal || groupName || missionName;
   const note = $('#is-note').value.trim();
   if (!missionId) { toast('กรุณาเลือกภารกิจ', 'error'); return; }
   if (!groupId && !groupName) { toast('กรุณาเลือกกลุ่มงาน', 'error'); return; }
   const lines = collectTxLines('issue');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId };
+  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId };
   Store.addTransaction(tx);
   toast(`บันทึกจำหน่ายเรียบร้อย ${tx.no}`);
   Telegram.notifyIssue(tx);
@@ -424,7 +426,7 @@ App.filterTx = function (type) {
   const body = $('#tx-body-' + type);
   if (!body) return;
   const rows = txs.filter(t =>
-    (!q || t.no.toLowerCase().includes(q) || t.party.toLowerCase().includes(q) || t.items.some(l => l.name.toLowerCase().includes(q))) &&
+    (!q || t.no.toLowerCase().includes(q) || t.party.toLowerCase().includes(q) || (t.receiver && t.receiver.toLowerCase().includes(q)) || t.items.some(l => l.name.toLowerCase().includes(q))) &&
     (!groupFilter || (t.group === groupFilter))
   );
   body.innerHTML = rows.map(txRowHtml).join('') || `<tr><td colspan="7"><div class="empty">${icon('search', 34)}<span>ไม่พบรายการที่ค้นหา</span></div></td></tr>`;
@@ -496,8 +498,10 @@ App.delTx = function (id) {
         <div class="field"><label>วันที่ ${isRcv ? 'รับเข้า' : 'จำหน่าย'} *</label>
           <input id="${idP}-date" type="date" class="input" value="${todayStr()}" required></div>
         ${isRcv 
-          ? `<div class="field"><label>ผู้รับ / หน่วยงาน</label>
-              <input id="${idP}-party" class="input" placeholder="เช่น แผนกบัญชี"></div>`
+          ? `<div class="field"><label>ผู้ส่ง / ผู้จำหน่าย</label>
+              <input id="${idP}-party" class="input" placeholder="เช่น ร้านค้า, บริษัท"></div>
+            <div class="field"><label>ผู้รับ / หน่วยงาน</label>
+              <input id="${idP}-receiver" class="input" placeholder="เช่น แผนกบัญชี"></div>`
           : `<div class="field"><label>ภารกิจ *</label>
               <select id="${idP}-mission" class="input" required onchange="App.onMissionChange()">
                 <option value="">— เลือกภารกิจ —</option>
@@ -528,6 +532,8 @@ App.delTx = function (id) {
           return `<option value="${esc(x.serial)}">[${esc(it ? it.code : '')}] ${esc(it ? it.name : '')}</option>`;
         }).join('')}</datalist>` : ''}
       </div>
+      <div class="field"><label>ผู้เบิก / ผู้รับ *</label>
+        <input id="${idP}-receiver" class="input" placeholder="ชื่อผู้เบิก/ผู้รับวัสดุ" required></div>
       <div class="field"><label>หมายเหตุ</label>
         <textarea id="${idP}-note" class="input" rows="2" placeholder="ระบุรายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
       <div class="form-actions">
