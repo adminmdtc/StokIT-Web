@@ -268,11 +268,10 @@ App.submitReceive = function (ev) {
   const me = Auth.current();
   const date = $('#rv-date').value || todayStr();
   const party = $('#rv-party').value.trim();
-  const receiver = $('#rv-receiver') ? $('#rv-receiver').value.trim() : '';
   const note = $('#rv-note').value.trim();
   const lines = collectTxLines('receive');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, receiver, note, by: me.id, byName: me.name, items: lines };
+  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, note, by: me.id, byName: me.name, items: lines };
   Store.addTransaction(tx);
   toast(`บันทึกรับเข้าเรียบร้อย ${tx.no}`);
   Telegram.notifyReceive(tx);
@@ -503,10 +502,8 @@ App.delTx = function (id) {
         <div class="field"><label>วันที่ ${isRcv ? 'รับเข้า' : 'จำหน่าย'} *</label>
           <input id="${idP}-date" type="date" class="input" value="${todayStr()}" required></div>
         ${isRcv 
-          ? `<div class="field"><label>ผู้ส่ง / ผู้จำหน่าย</label>
-              <input id="${idP}-party" class="input" placeholder="เช่น ร้านค้า, บริษัท"></div>
-            <div class="field"><label>ผู้รับ / หน่วยงาน</label>
-              <input id="${idP}-receiver" class="input" placeholder="เช่น แผนกบัญชี"></div>`
+          ? `<div class="field"><label>บันทึกข้อมูล *</label>
+              <input id="${idP}-party" class="input" placeholder="เช่น ชื่อผู้ส่งมอบ, ร้านค้า" required></div>`
           : `<div class="field"><label>ภารกิจ *</label>
               <select id="${idP}-mission" class="input" required onchange="App.onMissionChange()">
                 <option value="">— เลือกภารกิจ —</option>
