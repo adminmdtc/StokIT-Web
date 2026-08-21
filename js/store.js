@@ -168,7 +168,7 @@ const Store = {
   },
 
   addItem(data) {
-    const defaults = { id: uid('it'), code: this.nextItemCode(), category: '', unit: '', minStock: 0, location: '', note: '', mission: '', group: '', workUnit: '' };
+    const defaults = { id: uid('it'), code: this.nextItemCode(), category: '', unit: '', minStock: 0, location: '', note: '', mission: '', group: '', workUnit: '', image: '' };
     const it = Object.assign(defaults, data);
     /* ถ้าไม่มี code ให้สร้างอัตโนมัติ */
     if (!it.code || it.code === '') it.code = this.nextItemCode();

@@ -61,6 +61,7 @@ function qrDataUrl(text) {
 function labelHtml(it) {
   const qr = qrDataUrl(it.code);
   return `<div class="label">
+    ${it.image ? `<div class="label-img"><img src="${esc(it.image)}" alt=""></div>` : ''}
     <div class="label-qr">${qr ? `<img src="${qr}" alt="QR ${esc(it.code)}">` : `<span class="label-noqr">${icon('tag', 20)}</span>`}</div>
     <div class="label-info">
       <div class="label-code">${esc(it.code)}</div>
@@ -135,6 +136,7 @@ function exportTxDoc(txId) {
     <div class="doc-title">${docName}</div>
     <table class="doc-info">
       <tr><td class="doc-info-label">${partyLabel}</td><td><strong>${esc(tx.party)}</strong></td></tr>
+      ${isRcv && tx.receiver ? `<tr><td class="doc-info-label">ผู้บันทึกข้อมูลรับเข้า</td><td><strong>${esc(tx.receiver)}</strong></td></tr>` : ''}
       ${!isRcv && tx.receiver ? `<tr><td class="doc-info-label">ผู้เบิก</td><td><strong>${esc(tx.receiver)}</strong></td></tr>` : ''}
       ${!isRcv && tx.partyRx ? `<tr><td class="doc-info-label">ผู้รับ</td><td><strong>${esc(tx.partyRx)}</strong></td></tr>` : ''}
       <tr><td class="doc-info-label">วันที่</td><td>${fmtDate(tx.date)}</td></tr>

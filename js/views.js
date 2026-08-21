@@ -216,36 +216,50 @@ function parseSerials(v) {
 App.removeTxRow = function (btn) { const r = btn.closest('.tx-row'); if (r) r.remove(); };
 
 App.resetTxForm = function (type) {
+  const pfx = type === 'receive' ? 'rv' : 'is';
   const c = type === 'receive' ? 'receive' : 'issue';
   const rows = document.getElementById(c + '-rows');
   if (rows) rows.innerHTML = '';
   App.addTxRow(type);
-  const d = document.getElementById((type === 'receive' ? 'rv' : 'is') + '-date');
-  const p = document.getElementById((type === 'receive' ? 'rv' : 'is') + '-party');
-  const n = document.getElementById((type === 'receive' ? 'rv' : 'is') + '-note');
+  const d = document.getElementById(pfx + '-date');
+  const party = document.getElementById(pfx + '-party');
+  const n = document.getElementById(pfx + '-note');
   if (d) d.value = todayStr();
-  if (p) p.value = '';
+  if (party) party.value = '';
+  const rx = document.getElementById(pfx + '-receiver');
+  if (rx) rx.value = '';
   if (n) n.value = '';
+  /* ล้าง mission / group / unit */
+  const mSel = document.getElementById(pfx + '-mission');
+  const gSel = document.getElementById(pfx + '-group');
+  if (mSel) mSel.value = '';
+  if (gSel) gSel.innerHTML = '<option value="">— เลือกกลุ่มงาน —</option>';
+  const gc = document.getElementById(pfx + '-group-custom');
+  if (gc) gc.classList.add('hidden');
+  const uw = document.getElementById(pfx + '-unit-wrap');
+  if (uw) uw.classList.add('hidden');
 };
 
-App.onMissionChange = function () {
-  const missionId = $('#is-mission').value;
-  const groupSelect = $('#is-group');
+App.onMissionChange = function (prefix) {
+  const p = prefix || 'is';
+  const missionId = $(`#${p}-mission`).value;
+  const groupSelect = $(`#${p}-group`);
   const groups = getMissionGroups(missionId);
   groupSelect.innerHTML = '<option value="">— เลือกกลุ่มงาน —</option>' +
     groups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('') +
     '<option value="other">... พิมพ์เอง</option>';
-  document.getElementById('is-group-custom').classList.add('hidden');
+  document.getElementById(`${p}-group-custom`).classList.add('hidden');
   /* ล้าง unit dropdown */
-  const unitWrap = document.getElementById('is-unit-wrap');
+  const unitWrap = document.getElementById(`${p}-unit-wrap`);
   if (unitWrap) unitWrap.classList.add('hidden');
 };
 
-App.onGroupChange = function () {
-  const groupId = $('#is-group').value;
-  const unitWrap = document.getElementById('is-unit-wrap');
-  const unitSelect = $('#is-unit');
-  const customWrap = document.getElementById('is-group-custom');
+App.onGroupChange = function (prefix) {
+  const p = prefix || 'is';
+  const groupId = $(`#${p}-group`).value;
+  const unitWrap = document.getElementById(`${p}-unit-wrap`);
+  const unitSelect = $(`#${p}-unit`);
+  const customWrap = document.getElementById(`${p}-group-custom`);
   if (groupId === 'other') {
     customWrap.classList.remove('hidden');
     if (unitWrap) unitWrap.classList.add('hidden');
@@ -268,10 +282,14 @@ App.submitReceive = function (ev) {
   const me = Auth.current();
   const date = $('#rv-date').value || todayStr();
   const party = $('#rv-party').value.trim();
+  let receiver = $('#rv-receiver') ? $('#rv-receiver').value : '';
+  if (receiver === 'other') {
+    receiver = $('#rv-receiver-custom') ? $('#rv-receiver-custom').value.trim() : '';
+  }
   const note = $('#rv-note').value.trim();
   const lines = collectTxLines('receive');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, note, by: me.id, byName: me.name, items: lines };
+  const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, receiver, note, by: me.id, byName: me.name, items: lines };
   Store.addTransaction(tx);
   toast(`บันทึกรับเข้าเรียบร้อย ${tx.no}`);
   Telegram.notifyReceive(tx);
@@ -309,7 +327,7 @@ App.submitIssue = function (ev) {
   if (!groupId && !groupName) { toast('กรุณาเลือกกลุ่มงาน', 'error'); return; }
   const lines = collectTxLines('issue');
   if (!lines) return;
-  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, partyRx, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId };
+  const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, partyRx, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId, workUnit: unitVal };
   Store.addTransaction(tx);
   toast(`บันทึกจำหน่ายเรียบร้อย ${tx.no}`);
   Telegram.notifyIssue(tx);
@@ -371,7 +389,7 @@ function txRowHtml(t) {
   return `<tr class="clickable" onclick="App.toggleTxDetail('${t.id}')">
     <td class="td-mono">${esc(t.no)}</td>
     <td>${fmtDate(t.date)}</td>
-    <td>${esc(t.party)}</td>
+    <td>${esc(t.party)}${t.type === 'receive' && t.receiver ? `<br><span class="muted small">ผู้บันทึก: ${esc(t.receiver)}</span>` : ''}</td>
     <td>${esc(t.items[0].name)}${t.items.length > 1 ? ` <span class="muted small">+${t.items.length - 1} รายการ</span>` : ''}</td>
     <td class="num">${value}</td>
     <td class="muted">${esc(t.byName)}</td>
@@ -390,6 +408,8 @@ function txRowHtml(t) {
           <td>${esc((Store.getItem(l.itemId) || {}).unit || '')}</td>
         </tr>`).join('')}</tbody>
       </table>
+      ${t.type === 'receive' && t.receiver ? `<div class="tx-note">ผู้บันทึกข้อมูลรับเข้า: ${esc(t.receiver)}</div>` : ''}
+      ${t.workUnit ? `<div class="tx-note">งาน: ${esc(t.workUnit)}</div>` : ''}
       ${t.note ? `<div class="tx-note">หมายเหตุ: ${esc(t.note)}</div>` : ''}
     </div>
   </td></tr>`;
@@ -398,7 +418,7 @@ function txRowHtml(t) {
 function renderTxHistory(type) {
   const txs = Store.transactions().filter(t => t.type === type);
   const title = type === 'receive' ? 'ประวัติรับเข้าวัสดุ' : 'ประวัติจำหน่าย / เบิกจ่าย';
-  const partyCol = 'ผู้รับ / หน่วยงาน';
+  const partyCol = type === 'receive' ? 'ผู้ส่งมอบ / ผู้บันทึก' : 'ผู้เบิก / หน่วยงาน';
   const allGroups = MISSIONS.flatMap(m => m.groups.map(g => ({ id: g.id, name: g.name, mission: m.name })));
   const deptOptions = allGroups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
   const rows = txs.map(txRowHtml).join('');
@@ -505,18 +525,18 @@ App.delTx = function (id) {
           ? `<div class="field"><label>บันทึกข้อมูล *</label>
               <input id="${idP}-party" class="input" placeholder="เช่น ชื่อผู้ส่งมอบ, ร้านค้า" required></div>`
           : `<div class="field"><label>ภารกิจ *</label>
-              <select id="${idP}-mission" class="input" required onchange="App.onMissionChange()">
+              <select id="${idP}-mission" class="input" required onchange="App.onMissionChange('${idP}')">
                 <option value="">— เลือกภารกิจ —</option>
                 ${missionOptions}
               </select></div>
             <div class="field"><label>กลุ่มงาน *</label>
-              <select id="${idP}-group" class="input" required onchange="App.onGroupChange()">
+              <select id="${idP}-group" class="input" required onchange="App.onGroupChange('${idP}')">
                 <option value="">— เลือกกลุ่มงาน —</option>
               </select>
               <input id="${idP}-group-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อกลุ่มงาน">
             </div>
-            <div class="field hidden" id="is-unit-wrap"><label>งาน</label>
-              <select id="${idP}-unit" class="input" onchange="document.getElementById('is-unit-custom').classList.toggle('hidden', this.value !== 'other')">
+            <div class="field hidden" id="${idP}-unit-wrap"><label>งาน</label>
+              <select id="${idP}-unit" class="input" onchange="document.getElementById('${idP}-unit-custom').classList.toggle('hidden', this.value !== 'other')">
                 <option value="">— เลือกงาน —</option>
               </select>
               <input id="${idP}-unit-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่องาน">
@@ -536,7 +556,13 @@ App.delTx = function (id) {
       </div>
       ${isRcv 
         ? `<div class="field"><label>บันทึกข้อมูลรับเข้าวัสดุ *</label>
-            <input id="${idP}-receiver" class="input" placeholder="ชื่อผู้บันทึกข้อมูลรับเข้า"></div>`
+            <select id="${idP}-receiver" class="input" required onchange="document.getElementById('${idP}-receiver-custom').classList.toggle('hidden', this.value !== 'other')">
+              <option value="">— เลือกผู้บันทึก —</option>
+              <option value="นายพีรพัฒน์ ชัยวัฒน์ทวี">นายพีรพัฒน์ ชัยวัฒน์ทวี</option>
+              <option value="other">... พิมพ์เอง</option>
+            </select>
+            <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้บันทึกข้อมูลรับเข้า">
+          </div>`
         : `<div class="field"><label>ผู้เบิก *</label>
             <select id="${idP}-receiver" class="input" required onchange="document.getElementById('${idP}-receiver-custom').classList.toggle('hidden', this.value !== 'other')">
               <option value="">— เลือกผู้เบิก —</option>
@@ -888,7 +914,7 @@ App.filterStock = function (params) {
   body.innerHTML = stock.map(s => `
     <tr data-id="${s.id}">
       <td class="td-mono">${esc(s.code)}</td>
-      <td><strong>${esc(s.name)}</strong><div class="muted small">${esc(s.location) || '—'}</div></td>
+      <td class="td-item-name">${s.image ? `<img class="item-thumb" src="${esc(s.image)}" alt="">` : ''}<div><strong>${esc(s.name)}</strong><div class="muted small">${esc(s.location) || '—'}</div></div></td>
       <td><span class="chip-cat">${esc(s.category)}</span></td>
       <td>${esc(s.unit)}</td>
       <td class="num"><strong>${fmtQty(s.qty)}</strong> ${s.status === 'out' ? '<span class="muted small">(หมด)</span>' : ''}</td>
@@ -936,6 +962,17 @@ function itemModal(item) {
         <span class="muted small">สำหรับวัสดุราคาสูง เช่น โน้ตบุ๊ก เครื่องพิมพ์ — ต้องระบุ Serial ทุกครั้งที่รับเข้า / จำหน่าย</span></div>
       <div class="field full"><label>สถานที่จัดเก็บ</label><input class="input" id="if-loc" value="${esc(item ? item.location : '')}" placeholder="เช่น ห้องพัสดุ ชั้น A"></div>
       <div class="field full"><label>หมายเหตุ</label><input class="input" id="if-note" value="${esc(item ? item.note : '')}"></div>
+      <div class="field full"><label>รูปภาพวัสดุ</label>
+        <div class="item-image-wrap" id="if-image-wrap">
+          ${item && item.image ? `<div class="item-image-preview"><img src="${esc(item.image)}" alt="รูปวัสดุ"><button type="button" class="btn-icon danger" onclick="App.clearItemImage()" title="ลบรูป">${icon('trash', 14)}</button></div>` : ''}
+          <div class="item-image-actions">
+            <label class="btn btn-outline btn-sm" style="cursor:pointer">${icon('camera', 14)} ถ่ายรูป / เลือกรูป
+              <input type="file" id="if-image" accept="image/*" capture="environment" class="hidden" onchange="App.previewItemImage(this)"></label>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="document.getElementById('if-image').click()" title="เลือกไฟล์รูป">${icon('box', 14)} เลือกไฟล์</button>
+          </div>
+        </div>
+        <span class="muted small">รองรับ JPG, PNG — ขนาดไม่เกิน 500 KB</span>
+      </div>
     </form>`,
     `<button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
      <button class="btn btn-primary" onclick="App.saveItem('${isEdit ? item.id : ''}')">${icon('check', 16)} บันทึก</button>`));
@@ -964,6 +1001,33 @@ App.onItemGroupChange = function () {
   }
 };
 
+App.previewItemImage = function (input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  if (file.size > 500 * 1024) { toast('ไฟล์รูปภาพมีขนาดเกิน 500 KB', 'error'); input.value = ''; return; }
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    const wrap = document.getElementById('if-image-wrap');
+    if (!wrap) return;
+    /* ลบ preview เดิมถ้ามี */
+    const old = wrap.querySelector('.item-image-preview');
+    if (old) old.remove();
+    const div = document.createElement('div');
+    div.className = 'item-image-preview';
+    div.innerHTML = `<img src="${e.target.result}" alt="รูปวัสดุ"><button type="button" class="btn-icon danger" onclick="App.clearItemImage()" title="ลบรูป">${icon('trash', 14)}</button>`;
+    wrap.prepend(div);
+  };
+  reader.readAsDataURL(file);
+};
+
+App.clearItemImage = function () {
+  const wrap = document.getElementById('if-image-wrap');
+  const preview = wrap && wrap.querySelector('.item-image-preview');
+  if (preview) preview.remove();
+  const input = document.getElementById('if-image');
+  if (input) input.value = '';
+};
+
 App.saveItem = function (id) {
   const name = $('#if-name').value.trim();
   const category = $('#if-cat').value.trim();
@@ -990,7 +1054,16 @@ App.saveItem = function (id) {
     location: $('#if-loc').value.trim(),
     note: $('#if-note').value.trim(),
     trackSerial: !!document.getElementById('if-serial').checked,
+    image: '',
   };
+  /* อ่านรูปภาพจาก preview ถ้ามี */
+  const imgPreview = document.querySelector('#if-image-wrap .item-image-preview img');
+  if (imgPreview) data.image = imgPreview.src;
+  /* ถ้าแก้ไขและไม่ได้เปลี่ยนรูป ใช้รูปเดิม */
+  if (id && !data.image) {
+    const existing = Store.getItem(id);
+    if (existing && existing.image) data.image = existing.image;
+  }
   if (code) data.code = code;
   if (id && !data.trackSerial) {
     const serials = Store.serialMap()[id] || {};
@@ -1030,10 +1103,12 @@ function renderReports() {
     <div class="toolbar">
       <div class="seg" id="rep-seg">
         <button class="seg-btn ${REP.type === 'stock' ? 'active' : ''}" onclick="App.setReport('stock')">คงเหลือ</button>
+        <button class="seg-btn ${REP.type === 'out' ? 'active' : ''}" onclick="App.setReport('out')">หมดคลัง</button>
+        <button class="seg-btn ${REP.type === 'low' ? 'active' : ''}" onclick="App.setReport('low')">ใกล้หมด (≤1)</button>
         <button class="seg-btn ${REP.type === 'receive' ? 'active' : ''}" onclick="App.setReport('receive')">รับเข้า</button>
         <button class="seg-btn ${REP.type === 'issue' ? 'active' : ''}" onclick="App.setReport('issue')">จำหน่าย</button>
       </div>
-      <div id="rep-range" class="${REP.type === 'stock' ? 'hidden' : ''}">
+      <div id="rep-range" class="${['stock','out','low'].includes(REP.type) ? 'hidden' : ''}">
         <span class="muted small">จาก</span>
         <input type="date" class="input" id="rep-from" style="width:155px" value="${REP.from}" onchange="App.applyRange()">
         <span class="muted small">ถึง</span>
@@ -1063,19 +1138,22 @@ App.applyRange = function () {
 };
 
 function reportData(type) {
-  if (type === 'stock') {
-    const stock = Store.getStock();
+  if (['stock','out','low'].includes(type)) {
+    let stock = Store.getStock();
+    if (type === 'out') stock = stock.filter(s => s.qty <= 0);
+    if (type === 'low') stock = stock.filter(s => s.qty > 0 && s.qty <= 1);
     const cols = [
       { label: 'ลำดับ', align: 'right' }, { label: 'รหัสวัสดุ' }, { label: 'รายการวัสดุ' }, { label: 'หมวดหมู่' },
       { label: 'หน่วย' }, { label: 'คงเหลือ', align: 'right' }, { label: 'สถานะ' },
     ];
-    const rows = stock.map((s, i) => [
-      i + 1, s.code, s.name, s.category, s.unit, fmtQty(s.qty),
-      s.status === 'out' ? 'หมดคลัง' : s.status === 'low' ? 'ใกล้หมด' : 'เพียงพอ',
-    ]);
+    const rows = stock.map((s, i) => {
+      const status = s.qty <= 0 ? 'หมดคลัง' : s.qty <= 1 ? 'ใกล้หมด' : 'เพียงพอ';
+      return [i + 1, s.code, s.name, s.category, s.unit, fmtQty(s.qty), status];
+    });
     const totQ = stock.reduce((a, s) => a + s.qty, 0);
+    const titles = { stock: 'รายงานคงเหลือวัสดุ', out: 'รายงานวัสดุหมดคลัง', low: 'รายงานวัสดุใกล้หมด (คงเหลือ ≤1)' };
     return {
-      title: 'รายงานคงเหลือวัสดุ',
+      title: titles[type] || 'รายงานคงเหลือวัสดุ',
       subtitle: `ณ วันที่ ${fmtDate(todayStr())} — จำนวน ${stock.length} รายการ`,
       cols, rows,
       totalsRow: ['', '', '', '', 'รวม', fmtQty(totQ), ''],

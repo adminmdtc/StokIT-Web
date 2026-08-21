@@ -410,6 +410,8 @@ table.list .actions { text-align: right; white-space: nowrap; }
   border: 1.5px solid #475569; border-radius: 4px; padding: 4mm 5mm;
   display: flex; align-items: center; gap: 4mm; background: #fff; break-inside: avoid;
 }
+.label-img { width: 24mm; height: 24mm; flex-shrink: 0; }
+.label-img img { width: 100%; height: 100%; object-fit: cover; border-radius: 3px; display: block; }
 .label-qr img { width: 24mm; height: 24mm; display: block; }
 .label-qr .label-noqr {
   width: 24mm; height: 24mm; display: flex; align-items: center; justify-content: center;
@@ -656,4 +658,58 @@ table.list .actions { text-align: right; white-space: nowrap; }
 }
 .card-muted {
   opacity: .7;
+}
+
+/* ---------- Item image ---------- */
+.item-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.td-item-name {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.item-image-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.item-image-preview {
+  position: relative;
+  display: inline-block;
+  width: 160px;
+  height: 160px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+.item-image-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.item-image-preview .btn-icon {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(255,255,255,.85);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.item-image-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
