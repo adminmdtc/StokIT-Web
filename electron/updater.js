@@ -2,18 +2,46 @@
 
 const { autoUpdater } = require('electron-updater');
 const { BrowserWindow, dialog, ipcMain } = require('electron');
-const log = require('electron-log');
-
-// ตั้งค่า logging
-autoUpdater.logger = log;
-autoUpdater.logger.transports.file.level = 'info';
-
-// ปิด auto-download (ให้ผู้ใช้ยืนยันก่อน)
-autoUpdater.autoDownload = false;
-autoUpdater.autoInstallOnAppQuit = true;
+const path = require('path');
+const fs = require('fs');
 
 let updateWindow = null;
 let isChecking = false;
+
+// ตรวจสอบ app-update.yml
+const ymlPath = path.join(process.resourcesPath || __dirname, 'app-update.yml');
+if (!fs.existsSync(ymlPath)) {
+  // ถ้าไม่มีไฟล์ yml ให้ copy จาก directory ของ app
+  const srcPath = path.join(__dirname, 'app-update.yml');
+  if (fs.existsSync(srcPath)) {
+    try {
+      fs.copyFileSync(srcPath, ymlPath);
+    } catch (e) {
+      // ถ้า copy ไม่ได้ ให้ตั้งค่า provider โดยตรง
+    }
+  }
+}
+
+// ตั้งค่า logger
+try {
+  const log = require('electron-log');
+  autoUpdater.logger = log;
+  autoUpdater.logger.transports.file.level = 'info';
+} catch (e) {
+  // electron-log ไม่พร้อมใช้งาน
+}
+
+// ตั้งค่า auto-update
+autoUpdater.autoDownload = false;
+autoUpdater.autoInstallOnAppQuit = true;
+
+// ตั้งค่า feed URL โดยตรง (fallback ถ้าไม่มี yml)
+autoUpdater.setFeedURL({
+  provider: 'github',
+  owner: 'adminmdtc',
+  repo: 'StokIT-Web',
+  releaseType: 'release',
+});
 
 /**
  * สร้างหน้าต่างแสดงสถานะอัพเดท
@@ -40,7 +68,7 @@ function createUpdateWindow(mainWin) {
   });
 
   updateWindow.setMenuBarVisibility(false);
-  updateWindow.loadFile(require('path').join(__dirname, 'update.html'));
+  updateWindow.loadFile(path.join(__dirname, 'update.html'));
   updateWindow.on('closed', () => { updateWindow = null; });
 }
 
@@ -74,7 +102,7 @@ function checkForUpdates(mainWin) {
 
   autoUpdater.checkForUpdates().catch((err) => {
     isChecking = false;
-    log.error('Check for updates failed:', err);
+    console.error('Check for updates failed:', err);
     sendToWindow('update-status', {
       status: 'error',
       message: 'ไม่สามารถตรวจสอบได้: ' + (err.message || 'ไม่ทราบสาเหตุ'),
@@ -85,16 +113,16 @@ function checkForUpdates(mainWin) {
 // === Event Handlers ===
 
 autoUpdater.on('checking-for-update', () => {
-  log.info('Checking for update...');
+  console.log('Checking for update...');
   sendToWindow('update-status', { status: 'checking', message: 'กำลังตรวจสอบอัพเดท...' });
 });
 
 autoUpdater.on('update-available', (info) => {
   isChecking = false;
-  log.info('Update available:', info.version);
+  console.log('Update available:', info.version);
   sendToWindow('update-status', {
     status: 'available',
-    message: `พบเวอร์ชันใหม่ ${info.version}`,
+    message: 'พบเวอร์ชันใหม่ ' + info.version,
     currentVersion: require('./package.json').version,
     newVersion: info.version,
     releaseNotes: info.releaseNotes || null,
@@ -103,18 +131,17 @@ autoUpdater.on('update-available', (info) => {
 
 autoUpdater.on('update-not-available', (info) => {
   isChecking = false;
-  log.info('Update not available. Current:', info.version);
+  console.log('Update not available. Current:', info.version);
   sendToWindow('update-status', {
     status: 'up-to-date',
-    message: `เป็นเวอร์ชันล่าสุดแล้ว (${info.version})`,
+    message: 'เป็นเวอร์ชันล่าสุดแล้ว (' + info.version + ')',
   });
-  // ปิดหน้าต่างอัตโนมัติหลัง 2 วินาที
   setTimeout(closeUpdateWindow, 2000);
 });
 
 autoUpdater.on('download-progress', (progress) => {
-  const msg = `กำลังดาวน์โหลด... ${Math.round(progress.percent)}%`;
-  log.info(msg);
+  var msg = 'กำลังดาวน์โหลด... ' + Math.round(progress.percent) + '%';
+  console.log(msg);
   sendToWindow('update-status', {
     status: 'downloading',
     message: msg,
@@ -126,24 +153,23 @@ autoUpdater.on('download-progress', (progress) => {
 
 autoUpdater.on('update-downloaded', (info) => {
   isChecking = false;
-  log.info('Update downloaded:', info.version);
+  console.log('Update downloaded:', info.version);
   sendToWindow('update-status', {
     status: 'downloaded',
-    message: `ดาวน์โหลดเสร็จแล้ว! ต้องการรีสตาร์ทเพื่ออัพเดท`,
+    message: 'ดาวน์โหลดเสร็จแล้ว! ต้องการรีสตาร์ทเพื่ออัพเดท',
   });
 
-  // ถามผู้ใช้ว่าต้องการรีสตาร์ทเลยหรือไม่
-  const parentWin = updateWindow || BrowserWindow.getFocusedWindow();
+  var parentWin = updateWindow || BrowserWindow.getFocusedWindow();
   dialog.showMessageBox(parentWin, {
     type: 'info',
     title: 'มีเวอร์ชันใหม่พร้อมติดตั้ง',
-    message: `IT Stock เวอร์ชัน ${info.version} พร้อมแล้ว`,
+    message: 'IT Stock เวอร์ชัน ' + info.version + ' พร้อมแล้ว',
     detail: 'ต้องการรีสตาร์ทโปรแกรมเพื่ออัพเดทตอนนี้เลยไหม?',
     buttons: ['รีสตาร์ทตอนนี้', 'ภายหลัง'],
     defaultId: 0,
     cancelId: 1,
-  }).then(({ response }) => {
-    if (response === 0) {
+  }).then(function(result) {
+    if (result.response === 0) {
       autoUpdater.quitAndInstall(false, true);
     }
   });
@@ -151,7 +177,12 @@ autoUpdater.on('update-downloaded', (info) => {
 
 autoUpdater.on('error', (err) => {
   isChecking = false;
-  log.error('Auto-updater error:', err);
+  console.error('Auto-updater error:', err);
+  // แสดง error เฉพาะที่ไม่ใช่ ENOENT (ไฟล์ yml ไม่เจอ)
+  if (err.message && err.message.includes('ENOENT')) {
+    console.log('app-update.yml not found, auto-update will use fallback config');
+    return;
+  }
   sendToWindow('update-status', {
     status: 'error',
     message: 'เกิดข้อผิดพลาด: ' + (err.message || 'ไม่ทราบสาเหตุ'),
@@ -161,12 +192,12 @@ autoUpdater.on('error', (err) => {
 // === IPC Handlers ===
 
 ipcMain.on('start-download', () => {
-  log.info('User approved download');
+  console.log('User approved download');
   autoUpdater.downloadUpdate();
 });
 
 ipcMain.on('restart-app', () => {
-  log.info('User approved restart');
+  console.log('User approved restart');
   autoUpdater.quitAndInstall(false, true);
 });
 
@@ -175,6 +206,6 @@ ipcMain.on('close-update-window', () => {
 });
 
 module.exports = {
-  checkForUpdates,
-  autoUpdater,
+  checkForUpdates: checkForUpdates,
+  autoUpdater: autoUpdater,
 };

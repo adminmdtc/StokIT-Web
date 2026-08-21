@@ -1,0 +1,4 @@
+provider: github
+owner: adminmdtc
+repo: StokIT-Web
+releaseType: release
