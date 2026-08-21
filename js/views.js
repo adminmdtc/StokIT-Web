@@ -1517,7 +1517,10 @@ function renderSettings() {
     <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       ${fbConnected ? '<span class="badge badge-success">✅ เชื่อมต่อแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่เชื่อมต่อ</span>'}
       <label class="check muted small" style="margin:0">
-        <input type="checkbox" id="sync-sound-toggle" ${localStorage.getItem('it_stock_sync_sound') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncSound(this.checked)"> เปิดเสียงแจ้งเตือน sync
+        <input type="checkbox" id="sync-sound-toggle" ${localStorage.getItem('it_stock_sync_sound') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncSound(this.checked)"> เปิดเสียง sync
+      </label>
+      <label class="check muted small" style="margin:0">
+        <input type="checkbox" id="sync-notify-toggle" ${localStorage.getItem('it_stock_sync_notify') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncNotify(this.checked)"> แจ้งเตือน sync
       </label>
     </div>
     <form id="fb-form" class="form-grid" onsubmit="return false">

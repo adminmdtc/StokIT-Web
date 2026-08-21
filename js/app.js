@@ -106,12 +106,44 @@ function bindSidebar() {
 let _audioCtx = null;
 let _syncSoundReady = false;
 let _syncSoundEnabled = localStorage.getItem('it_stock_sync_sound') !== 'off';
+let _syncNotifyEnabled = localStorage.getItem('it_stock_sync_notify') !== 'off';
 
 App.toggleSyncSound = function(enabled) {
   _syncSoundEnabled = enabled;
   localStorage.setItem('it_stock_sync_sound', enabled ? 'on' : 'off');
-  if (enabled) playSyncSuccess(); // เล่นเสียงทดสอบเมื่อเปิด
+  if (enabled) playSyncSuccess();
 };
+
+App.toggleSyncNotify = function(enabled) {
+  _syncNotifyEnabled = enabled;
+  localStorage.setItem('it_stock_sync_notify', enabled ? 'on' : 'off');
+  if (enabled) requestNotificationPermission();
+};
+
+/* ============================================================
+   Browser Notifications
+   ============================================================ */
+function requestNotificationPermission() {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') return;
+  if (Notification.permission !== 'denied') {
+    Notification.requestPermission();
+  }
+}
+
+function showSyncNotification(title, body, type) {
+  if (!_syncNotifyEnabled || !('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+
+  try {
+    const icon = type === 'error'
+      ? 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">❌</text></svg>'
+      : 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">✅</text></svg>';
+
+    const n = new Notification(title, { body, icon, tag: 'it-stock-sync' });
+    setTimeout(() => n.close(), 4000);
+  } catch (e) { /* ignore */ }
+}
 
 function getAudioContext() {
   if (!_audioCtx) {
@@ -171,16 +203,22 @@ function updateSyncIndicator(status, message) {
   const text = document.getElementById('sync-text');
   if (!dot || !text) return;
 
-  // ลบ class เดิม
   dot.className = 'sync-dot';
 
-  // เล่นเสียง (เฉพาะเมื่อเปิดใช้งาน, สถานะเปลี่ยน, และไม่ใช่ครั้งแรก)
-  if (_syncSoundReady && _syncSoundEnabled && status !== _prevSyncStatus) {
-    switch (status) {
-      case 'connected':  playSyncSuccess(); break;
-      case 'error':      playSyncError(); break;
-      case 'syncing':    playSyncing(); break;
-      case 'offline':    playOffline(); break;
+  // เล่นเสียง + notification (เฉพาะเมื่อสถานะเปลี่ยน และไม่ใช่ครั้งแรก)
+  if (_syncSoundReady && status !== _prevSyncStatus) {
+    if (_syncSoundEnabled) {
+      switch (status) {
+        case 'connected':  playSyncSuccess(); break;
+        case 'error':      playSyncError(); break;
+        case 'syncing':    playSyncing(); break;
+        case 'offline':    playOffline(); break;
+      }
+    }
+    if (status === 'connected') {
+      showSyncNotification('✅ IT Stock', 'เชื่อมต่อ Firebase สำเร็จ — ข้อมูลซิงค์แล้ว', 'success');
+    } else if (status === 'error') {
+      showSyncNotification('❌ IT Stock', 'เชื่อมต่อ Firebase ล้มเหลว — ลองใหม่อีกครั้ง', 'error');
     }
   }
   _prevSyncStatus = status;
@@ -257,4 +295,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // เปิดใช้งานเสียงหลัง init เสร็จ (ป้องกันเสียงครั้งแรก)
   setTimeout(() => { _syncSoundReady = true; }, 2000);
+
+  // ขอ permission สำหรับ browser notification
+  if (_syncNotifyEnabled) requestNotificationPermission();
 });
