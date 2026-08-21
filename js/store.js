@@ -140,11 +140,15 @@ const Store = {
     }
     return false;
   },
-  save() {
+  async save() {
     localStorage.setItem(DB_KEY, JSON.stringify(this.db));
-    // Auto sync to Firebase
+    // Auto sync to Firebase (await to ensure sync)
     if (typeof autoSyncToFirebase === 'function') {
-      autoSyncToFirebase();
+      try {
+        await autoSyncToFirebase();
+      } catch (e) {
+        console.error('Firebase sync error in save:', e);
+      }
     }
   },
   reset() {

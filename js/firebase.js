@@ -11,6 +11,8 @@ const FirebaseDB = {
   connected: false,
   config: null,
   _listeners: [],
+  _syncing: false,
+  _periodicInterval: null,
 
   /* โหลด config จาก localStorage */
   loadConfig() {
@@ -34,6 +36,7 @@ const FirebaseDB = {
   clearConfig() {
     this.config = null;
     localStorage.removeItem('it_stock_firebase_config');
+    this.stopPeriodicSync();
   },
 
   /* เชื่อมต่อ Firebase */
@@ -45,7 +48,6 @@ const FirebaseDB = {
     if (!this.config || !this.config.apiKey) return false;
 
     try {
-      // ใช้ Firebase SDK จาก CDN
       const firebaseConfig = {
         apiKey: this.config.apiKey,
         authDomain: this.config.authDomain,
@@ -53,13 +55,11 @@ const FirebaseDB = {
         projectId: this.config.projectId,
       };
 
-      // ตรวจสอบว่า Firebase SDK โหลดแล้วหรือยัง
       if (typeof firebase === 'undefined') {
         console.error('Firebase SDK not loaded');
         return false;
       }
 
-      // Initialize Firebase (ถ้ายังไม่ได้ init)
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
@@ -67,6 +67,10 @@ const FirebaseDB = {
       this.db = firebase.database();
       this.connected = true;
       console.log('Firebase connected successfully');
+      
+      // เริ่ม periodic sync
+      this.startPeriodicSync();
+      
       return true;
     } catch (e) {
       console.error('Firebase connect error:', e);
@@ -77,8 +81,8 @@ const FirebaseDB = {
 
   /* ปิดการเชื่อมต่อ */
   disconnect() {
+    this.stopPeriodicSync();
     if (this.db) {
-      // ลบ listeners ทั้งหมด
       this._listeners.forEach(ref => ref.off());
       this._listeners = [];
     }
@@ -93,16 +97,17 @@ const FirebaseDB = {
   /* ซิงค์ข้อมูลทั้งหมดจาก Firebase ลง local */
   async syncFromFirebase() {
     if (!this.connected || !this.db) return false;
+    if (this._syncing) return false; // ป้องกัน sync ซ้ำ
     
+    this._syncing = true;
     try {
       const snapshot = await this.db.ref('itstock').once('value');
       const data = snapshot.val();
       
-      if (data) {
-        // บันทึกลง localStorage
-        localStorage.setItem(DB_KEY, JSON.stringify(data));
-        // อัปเดต Store
+      if (data && typeof data === 'object') {
+        // Force update Store.db ทั้งหมด
         Store.db = data;
+        localStorage.setItem(DB_KEY, JSON.stringify(data));
         console.log('Synced from Firebase:', Object.keys(data));
         return true;
       }
@@ -110,13 +115,17 @@ const FirebaseDB = {
     } catch (e) {
       console.error('Sync from Firebase error:', e);
       return false;
+    } finally {
+      this._syncing = false;
     }
   },
 
   /* ส่งข้อมูลทั้งหมดขึ้น Firebase */
   async syncToFirebase() {
     if (!this.connected || !this.db) return false;
+    if (this._syncing) return false;
     
+    this._syncing = true;
     try {
       await this.db.ref('itstock').set(Store.db);
       console.log('Synced to Firebase');
@@ -124,6 +133,8 @@ const FirebaseDB = {
     } catch (e) {
       console.error('Sync to Firebase error:', e);
       return false;
+    } finally {
+      this._syncing = false;
     }
   },
 
@@ -131,21 +142,21 @@ const FirebaseDB = {
   onChanges(callback) {
     if (!this.connected || !this.db) return;
     
+    // ลบ listener เดิมก่อน
+    this._listeners.forEach(ref => ref.off());
+    this._listeners = [];
+    
     const ref = this.db.ref('itstock');
-    ref.on('value', (snapshot) => {
+    ref.on('value', async (snapshot) => {
       const data = snapshot.val();
-      if (data) {
-        // เปรียบเทียบกับข้อมูลปัจจุบัน
-        const currentStr = JSON.stringify(Store.db);
-        const newStr = JSON.stringify(data);
+      if (data && typeof data === 'object') {
+        // Force update เสมอ — ไม่เปรียบเทียบ
+        Store.db = data;
+        localStorage.setItem(DB_KEY, JSON.stringify(data));
+        console.log('Firebase real-time update received');
         
-        if (currentStr !== newStr) {
-          // มีการเปลี่ยนแปลง
-          localStorage.setItem(DB_KEY, newStr);
-          Store.db = data;
-          console.log('Firebase data changed, syncing...');
-          if (callback) callback(data);
-        }
+        // รีเฟรช UI
+        if (callback) callback(data);
       }
     });
     
@@ -156,6 +167,30 @@ const FirebaseDB = {
   stopListening() {
     this._listeners.forEach(ref => ref.off());
     this._listeners = [];
+  },
+
+  /* ============================================================
+     Periodic Sync — fallback ทุก 30 วินาที
+     ============================================================ */
+  
+  startPeriodicSync() {
+    this.stopPeriodicSync();
+    this._periodicInterval = setInterval(async () => {
+      if (this.connected && !this._syncing) {
+        try {
+          await this.syncFromFirebase();
+        } catch (e) {
+          console.error('Periodic sync error:', e);
+        }
+      }
+    }, 30000); // ทุก 30 วินาที
+  },
+
+  stopPeriodicSync() {
+    if (this._periodicInterval) {
+      clearInterval(this._periodicInterval);
+      this._periodicInterval = null;
+    }
   },
 
   /* ============================================================
@@ -186,7 +221,11 @@ function isFirebaseEnabled() {
 /* ซิงค์ข้อมูลอัตโนมัติ (เรียกหลังบันทึกข้อมูล) */
 async function autoSyncToFirebase() {
   if (isFirebaseEnabled()) {
-    await FirebaseDB.syncToFirebase();
+    try {
+      await FirebaseDB.syncToFirebase();
+    } catch (e) {
+      console.error('Auto sync to Firebase failed:', e);
+    }
   }
 }
 
@@ -194,9 +233,8 @@ async function autoSyncToFirebase() {
 async function autoSyncFromFirebase() {
   if (isFirebaseEnabled()) {
     const success = await FirebaseDB.syncFromFirebase();
-    if (success) {
-      // รีเฟรช UI
-      if (typeof route === 'function') route();
+    if (success && typeof route === 'function') {
+      route();
     }
     return success;
   }

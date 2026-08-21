@@ -112,12 +112,16 @@ async function initFirebase() {
     if (connected) {
       console.log('Firebase connected on startup');
       
-      // ซิงค์ข้อมูลจาก Firebase
-      await FirebaseDB.syncFromFirebase();
+      // ซิงค์ข้อมูลจาก Firebase (force update)
+      const synced = await FirebaseDB.syncFromFirebase();
+      if (synced) {
+        console.log('Initial sync from Firebase completed');
+        route(); // รีเฟรช UI
+      }
       
       // ฟังการเปลี่ยนแปลงแบบ real-time
       FirebaseDB.onChanges((data) => {
-        console.log('Firebase real-time update received');
+        console.log('Firebase real-time update received, refreshing UI...');
         // รีเฟรชหน้าปัจจุบัน
         route();
       });
