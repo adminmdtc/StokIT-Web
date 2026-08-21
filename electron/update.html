@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>อัพเดท IT Stock</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      background: #1e293b;
+      color: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      -webkit-app-region: drag;
+      user-select: none;
+    }
+    .card {
+      background: #334155;
+      border-radius: 16px;
+      padding: 32px;
+      width: 360px;
+      text-align: center;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+      -webkit-app-region: no-drag;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 16px;
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      color: #f1f5f9;
+    }
+    .message {
+      font-size: 14px;
+      color: #94a3b8;
+      margin-bottom: 20px;
+      min-height: 20px;
+    }
+    .progress-wrap {
+      display: none;
+      margin-bottom: 20px;
+    }
+    .progress-wrap.show { display: block; }
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #475569;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6366f1, #a78bfa);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      width: 0%;
+    }
+    .progress-text {
+      font-size: 12px;
+      color: #64748b;
+    }
+    .version-info {
+      font-size: 12px;
+      color: #64748b;
+      margin-bottom: 16px;
+    }
+    .btn-group { display: flex; gap: 10px; justify-content: center; }
+    .btn {
+      padding: 10px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
+    .btn-secondary {
+      background: #475569;
+      color: #e2e8f0;
+    }
+    .btn-secondary:hover { background: #52637a; }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid #475569;
+      border-top-color: #a78bfa;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .success { color: #34d399; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🔄</div>
+    <h2>อัพเดท IT Stock</h2>
+    <div class="message" id="status-message">กำลังตรวจสอบอัพเดท...</div>
+    <div class="version-info" id="version-info"></div>
+    <div class="progress-wrap" id="progress-wrap">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+      <div class="progress-text" id="progress-text">0%</div>
+    </div>
+    <div class="btn-group" id="btn-group">
+      <button class="btn btn-primary" id="btn-download" style="display:none" onclick="downloadUpdate()">ดาวน์โหลด</button>
+      <button class="btn btn-primary" id="btn-restart" style="display:none" onclick="restartApp()">รีสตาร์ท</button>
+      <button class="btn btn-secondary" id="btn-close" onclick="closeWindow()">ปิด</button>
+    </div>
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    ipcRenderer.on('update-status', (event, data) => {
+      const msg = document.getElementById('status-message');
+      const verInfo = document.getElementById('version-info');
+      const progressWrap = document.getElementById('progress-wrap');
+      const progressFill = document.getElementById('progress-fill');
+      const progressText = document.getElementById('progress-text');
+      const btnDownload = document.getElementById('btn-download');
+      const btnRestart = document.getElementById('btn-restart');
+
+      // Reset
+      progressWrap.classList.remove('show');
+      btnDownload.style.display = 'none';
+      btnRestart.style.display = 'none';
+
+      switch (data.status) {
+        case 'checking':
+          msg.innerHTML = '<span class="spinner"></span>' + data.message;
+          break;
+
+        case 'available':
+          msg.textContent = data.message;
+          msg.className = 'message';
+          verInfo.textContent = `${data.currentVersion} → ${data.newVersion}`;
+          btnDownload.style.display = 'inline-block';
+          break;
+
+        case 'up-to-date':
+          msg.textContent = '✅ ' + data.message;
+          msg.className = 'message success';
+          setTimeout(() => closeWindow(), 2000);
+          break;
+
+        case 'downloading':
+          msg.innerHTML = '<span class="spinner"></span>' + data.message;
+          progressWrap.classList.add('show');
+          progressFill.style.width = data.percent + '%';
+          progressText.textContent = `${Math.round(data.percent)}% — ${(data.transferred / 1024 / 1024).toFixed(1)} MB / ${(data.total / 1024 / 1024).toFixed(1)} MB`;
+          break;
+
+        case 'downloaded':
+          msg.textContent = '✅ ' + data.message;
+          msg.className = 'message success';
+          btnRestart.style.display = 'inline-block';
+          break;
+
+        case 'error':
+          msg.textContent = '❌ ' + data.message;
+          msg.className = 'message error';
+          break;
+      }
+    });
+
+    function downloadUpdate() {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('start-download');
+      document.getElementById('btn-download').style.display = 'none';
+    }
+
+    function restartApp() {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('restart-app');
+    }
+
+    function closeWindow() {
+      const { ipcRenderer } = require('electron');
+      ipcRenderer.send('close-update-window');
+    }
+  </script>
+</body>
+</html>
