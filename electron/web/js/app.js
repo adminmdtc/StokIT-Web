@@ -101,8 +101,71 @@ function bindSidebar() {
 }
 
 /* ============================================================
+   Sync Sound — Web Audio API
+   ============================================================ */
+let _audioCtx = null;
+let _syncSoundReady = false;
+let _syncSoundEnabled = localStorage.getItem('it_stock_sync_sound') !== 'off';
+
+App.toggleSyncSound = function(enabled) {
+  _syncSoundEnabled = enabled;
+  localStorage.setItem('it_stock_sync_sound', enabled ? 'on' : 'off');
+  if (enabled) playSyncSuccess(); // เล่นเสียงทดสอบเมื่อเปิด
+};
+
+function getAudioContext() {
+  if (!_audioCtx) {
+    _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return _audioCtx;
+}
+
+/* เล่นโน้ตเดียว */
+function playNote(freq, duration, delay, volume) {
+  try {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = freq;
+    osc.type = 'sine';
+    gain.gain.setValueAtTime(volume || 0.15, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + duration);
+    osc.start(ctx.currentTime + delay);
+    osc.stop(ctx.currentTime + delay + duration);
+  } catch (e) { /* ignore */ }
+}
+
+/* เสียงสำเร็จ — 2 โน้ตสูง ascending */
+function playSyncSuccess() {
+  playNote(523, 0.12, 0, 0.12);    // C5
+  playNote(659, 0.15, 0.1, 0.12);  // E5
+}
+
+/* เสียงล้มเหลว — 2 โน้ตต่ำ descending */
+function playSyncError() {
+  playNote(330, 0.15, 0, 0.1);     // E4
+  playNote(220, 0.2, 0.12, 0.1);   // A3
+}
+
+/* เสียงกำลัง sync — คลิกเบาๆ */
+function playSyncing() {
+  playNote(880, 0.06, 0, 0.06);    // A5 เบาๆ
+}
+
+/* เสียงออฟไลน์ — 3 โน้ต descending เบาๆ */
+function playOffline() {
+  playNote(440, 0.1, 0, 0.08);     // A4
+  playNote(349, 0.1, 0.08, 0.08);  // F4
+  playNote(262, 0.15, 0.16, 0.08); // C4
+}
+
+/* ============================================================
    Sync Indicator
    ============================================================ */
+let _prevSyncStatus = '';
+
 function updateSyncIndicator(status, message) {
   const dot = document.getElementById('sync-dot');
   const text = document.getElementById('sync-text');
@@ -110,6 +173,17 @@ function updateSyncIndicator(status, message) {
 
   // ลบ class เดิม
   dot.className = 'sync-dot';
+
+  // เล่นเสียง (เฉพาะเมื่อเปิดใช้งาน, สถานะเปลี่ยน, และไม่ใช่ครั้งแรก)
+  if (_syncSoundReady && _syncSoundEnabled && status !== _prevSyncStatus) {
+    switch (status) {
+      case 'connected':  playSyncSuccess(); break;
+      case 'error':      playSyncError(); break;
+      case 'syncing':    playSyncing(); break;
+      case 'offline':    playOffline(); break;
+    }
+  }
+  _prevSyncStatus = status;
 
   switch (status) {
     case 'connected':
@@ -180,4 +254,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // เริ่มต้น Firebase
   await initFirebase();
+
+  // เปิดใช้งานเสียงหลัง init เสร็จ (ป้องกันเสียงครั้งแรก)
+  setTimeout(() => { _syncSoundReady = true; }, 2000);
 });

@@ -1514,8 +1514,11 @@ function renderSettings() {
   <div class="card">
     <div class="card-head"><div><h3>🔗 เชื่อมต่อ Firebase (ซิงค์ข้อมูลหลายเครื่อง)</h3>
       <p class="muted small">เชื่อมต่อ Firebase Realtime Database เพื่อให้ข้อมูลซิงค์ระหว่าง PC, iPad และมือถืออัตโนมัติ</p></div></div>
-    <div style="margin-bottom:15px">
+    <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       ${fbConnected ? '<span class="badge badge-success">✅ เชื่อมต่อแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่เชื่อมต่อ</span>'}
+      <label class="check muted small" style="margin:0">
+        <input type="checkbox" id="sync-sound-toggle" ${localStorage.getItem('it_stock_sync_sound') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncSound(this.checked)"> เปิดเสียงแจ้งเตือน sync
+      </label>
     </div>
     <form id="fb-form" class="form-grid" onsubmit="return false">
       <div class="field full">
