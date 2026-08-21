@@ -101,9 +101,51 @@ function bindSidebar() {
 }
 
 /* ============================================================
+   Sync Indicator
+   ============================================================ */
+function updateSyncIndicator(status, message) {
+  const dot = document.getElementById('sync-dot');
+  const text = document.getElementById('sync-text');
+  if (!dot || !text) return;
+
+  // ลบ class เดิม
+  dot.className = 'sync-dot';
+
+  switch (status) {
+    case 'connected':
+      dot.classList.add('connected');
+      text.textContent = message || 'เชื่อมต่อแล้ว';
+      break;
+    case 'connecting':
+      dot.classList.add('syncing');
+      text.textContent = message || 'กำลังเชื่อมต่อ...';
+      break;
+    case 'syncing':
+      dot.classList.add('syncing');
+      text.textContent = message || 'กำลังซิงค์...';
+      break;
+    case 'error':
+      dot.classList.add('error');
+      text.textContent = message || 'เกิดข้อผิดพลาด';
+      break;
+    case 'offline':
+    default:
+      dot.classList.add('offline');
+      text.textContent = message || 'ไม่ได้เชื่อมต่อ';
+      break;
+  }
+}
+
+/* ============================================================
    Firebase Initialization
    ============================================================ */
 async function initFirebase() {
+  // ลงทะเบียน sync indicator
+  FirebaseDB.onStatusChange(updateSyncIndicator);
+
+  // แสดงสถานะเริ่มต้น
+  updateSyncIndicator('offline', 'ไม่ได้เชื่อมต่อ');
+
   // โหลด config
   const config = FirebaseDB.loadConfig();
   if (config && config.apiKey) {

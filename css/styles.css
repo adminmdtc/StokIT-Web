@@ -211,6 +211,55 @@ textarea.input { resize: vertical; min-height: 52px; }
 }
 .link-reset:hover { color: #cbd5e1; text-decoration: underline; }
 
+/* Sync Indicator */
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .05);
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.sync-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #64748b;
+  flex-shrink: 0;
+  transition: background .3s;
+}
+.sync-dot.connected {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, .5);
+}
+.sync-dot.syncing {
+  background: #f59e0b;
+  animation: pulse 1s infinite;
+}
+.sync-dot.error {
+  background: #ef4444;
+}
+.sync-dot.offline {
+  background: #64748b;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .4; }
+}
+.sync-text {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sync-text small {
+  font-size: 11px;
+  color: #64748b;
+}
+
 .main { min-width: 0; display: flex; flex-direction: column; }
 
 .topbar {

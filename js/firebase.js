@@ -13,6 +13,7 @@ const FirebaseDB = {
   _listeners: [],
   _syncing: false,
   _periodicInterval: null,
+  _statusCallbacks: [],
 
   /* โหลด config จาก localStorage */
   loadConfig() {
@@ -39,13 +40,30 @@ const FirebaseDB = {
     this.stopPeriodicSync();
   },
 
+  /* ลงทะเบียน callback สำหรับสถานะ */
+  onStatusChange(callback) {
+    this._statusCallbacks.push(callback);
+  },
+
+  /* แจ้งสถานะเปลี่ยนแปลง */
+  _emitStatus(status, message) {
+    this._statusCallbacks.forEach(cb => {
+      try { cb(status, message); } catch (e) { console.error('Status callback error:', e); }
+    });
+  },
+
   /* เชื่อมต่อ Firebase */
   async connect() {
     if (this.connected) return true;
     if (!this.config) {
       this.config = this.loadConfig();
     }
-    if (!this.config || !this.config.apiKey) return false;
+    if (!this.config || !this.config.apiKey) {
+      this._emitStatus('offline', 'ไม่ได้เชื่อมต่อ');
+      return false;
+    }
+
+    this._emitStatus('connecting', 'กำลังเชื่อมต่อ...');
 
     try {
       const firebaseConfig = {
@@ -57,6 +75,7 @@ const FirebaseDB = {
 
       if (typeof firebase === 'undefined') {
         console.error('Firebase SDK not loaded');
+        this._emitStatus('error', 'Firebase SDK ไม่พร้อมใช้งาน');
         return false;
       }
 
@@ -67,6 +86,7 @@ const FirebaseDB = {
       this.db = firebase.database();
       this.connected = true;
       console.log('Firebase connected successfully');
+      this._emitStatus('connected', 'เชื่อมต่อแล้ว');
       
       // เริ่ม periodic sync
       this.startPeriodicSync();
@@ -75,6 +95,7 @@ const FirebaseDB = {
     } catch (e) {
       console.error('Firebase connect error:', e);
       this.connected = false;
+      this._emitStatus('error', 'เชื่อมต่อล้มเหลว');
       return false;
     }
   },
@@ -88,6 +109,7 @@ const FirebaseDB = {
     }
     this.connected = false;
     this.db = null;
+    this._emitStatus('offline', 'ยกเลิกการเชื่อมต่อ');
   },
 
   /* ============================================================
@@ -100,6 +122,7 @@ const FirebaseDB = {
     if (this._syncing) return false; // ป้องกัน sync ซ้ำ
     
     this._syncing = true;
+    this._emitStatus('syncing', 'กำลังซิงค์ข้อมูล...');
     try {
       const snapshot = await this.db.ref('itstock').once('value');
       const data = snapshot.val();
@@ -109,11 +132,14 @@ const FirebaseDB = {
         Store.db = data;
         localStorage.setItem(DB_KEY, JSON.stringify(data));
         console.log('Synced from Firebase:', Object.keys(data));
+        this._emitStatus('connected', 'เชื่อมต่อแล้ว');
         return true;
       }
+      this._emitStatus('connected', 'เชื่อมต่อแล้ว');
       return false;
     } catch (e) {
       console.error('Sync from Firebase error:', e);
+      this._emitStatus('error', 'ซิงค์ล้มเหลว');
       return false;
     } finally {
       this._syncing = false;
@@ -126,12 +152,15 @@ const FirebaseDB = {
     if (this._syncing) return false;
     
     this._syncing = true;
+    this._emitStatus('syncing', 'กำลังบันทึก...');
     try {
       await this.db.ref('itstock').set(Store.db);
       console.log('Synced to Firebase');
+      this._emitStatus('connected', 'เชื่อมต่อแล้ว');
       return true;
     } catch (e) {
       console.error('Sync to Firebase error:', e);
+      this._emitStatus('error', 'บันทึกล้มเหลว');
       return false;
     } finally {
       this._syncing = false;
