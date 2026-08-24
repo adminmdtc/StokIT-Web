@@ -4,7 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "http-server . -p 3765 -c-1",
-    "start": "http-server . -p 3765 -c-1"
+    "start": "http-server . -p 3765 -c-1",
+    "sync-server": "node server/local-sync.js",
+    "start:all": "npm run dev & npm run sync-server"
+  },
+  "dependencies": {
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "http-server": "^14.1.1",

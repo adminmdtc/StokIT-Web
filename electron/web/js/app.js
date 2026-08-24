@@ -266,10 +266,11 @@ async function initFirebase() {
     if (connected) {
       console.log('Firebase connected on startup');
       
-      // ซิงค์ข้อมูลจาก Firebase (force update)
+      // ซิงค์ข้อมูลจาก Firebase (พร้อม conflict detection)
       const synced = await FirebaseDB.syncFromFirebase();
       if (synced) {
         console.log('Initial sync from Firebase completed');
+        Store._saveSyncBase();
         route(); // รีเฟรช UI
       }
       

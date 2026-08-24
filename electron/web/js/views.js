@@ -1717,6 +1717,341 @@ App.disconnectFirebase = function () {
 };
 
 /* ============================================================
+   พิมพ์บาร์โค้ด
+   ============================================================ */
+function renderBarcode() {
+  const stock = Store.getStock();
+  const categories = Store.categories();
+  
+  return `
+  <div class="card">
+    <div class="card-head"><div><h3>พิมพ์บาร์โค้ดวัสดุ</h3><p class="muted small">เลือกวัสดุที่ต้องการพิมพ์บาร์โค้ด พร้อมตั้งค่าขนาดและจำนวน</p></div></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>เลือกหมวดหมู่</label>
+        <select id="barcode-category" class="input" onchange="App.filterBarcodeItems()">
+          <option value="">ทุกหมวดหมู่</option>
+          ${categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>ขนาดบาร์โค้ด</label>
+        <select id="barcode-size" class="input" onchange="App.updateBarcodePreview()">
+          <option value="small">เล็ก (40x20mm)</option>
+          <option value="medium" selected>กลาง (60x30mm)</option>
+          <option value="large">ใหญ่ (80x40mm)</option>
+          <option value="xlarge">ใหญ่มาก (100x50mm)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>จำนวนต่อรายการ</label>
+        <input type="number" id="barcode-copies" class="input" min="1" max="20" value="1" onchange="App.updateBarcodePreview()">
+      </div>
+      <div class="field">
+        <label>ประเภทบาร์โค้ด</label>
+        <select id="barcode-type" class="input" onchange="App.updateBarcodePreview()">
+          <option value="CODE128">CODE128 (ทั่วไป)</option>
+          <option value="CODE39">CODE39</option>
+          <option value="EAN13">EAN-13</option>
+          <option value="EAN8">EAN-8</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>รูปแบบป้าย</label>
+        <select id="barcode-layout" class="input" onchange="App.updateBarcodePreview()">
+          <option value="barcode-only">บาร์โค้ดอย่างเดียว</option>
+          <option value="qr-only">QR Code อย่างเดียว</option>
+          <option value="both" selected>บาร์โค้ด + QR Code</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="field">
+      <label>เลือกวัสดุที่ต้องการพิมพ์</label>
+      <div style="margin-bottom: 8px;">
+        <button type="button" class="btn btn-soft btn-sm" onclick="App.selectAllBarcodeItems()">เลือกทั้งหมด</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="App.clearBarcodeItems()">ล้างเลือก</button>
+        <span id="barcode-selected-count" class="muted small" style="margin-left: 10px;">เลือก 0 รายการ</span>
+      </div>
+      <div id="barcode-items-list" class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+        <!-- รายการวัสดุจะแสดงที่นี่ -->
+      </div>
+    </div>
+    
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary" onclick="App.printBarcodes()">
+        ${icon('printer', 16)} พิมพ์บาร์โค้ด
+      </button>
+      <button type="button" class="btn btn-soft" onclick="App.previewBarcodes()">
+        ${icon('eye', 16)} ดูตัวอย่าง
+      </button>
+    </div>
+  </div>
+  
+  <div id="barcode-preview-area" class="card hidden">
+    <div class="card-head"><div><h3>ตัวอย่างบาร์โค้ด</h3></div></div>
+    <div id="barcode-preview-content" class="label-sheet" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 15px;"></div>
+  </div>`;
+}
+
+function initBarcode() {
+  App.filterBarcodeItems();
+}
+
+App.filterBarcodeItems = function() {
+  const category = document.getElementById('barcode-category').value;
+  const stock = Store.getStock();
+  const filtered = category ? stock.filter(s => s.category === category) : stock;
+  
+  const list = document.getElementById('barcode-items-list');
+  if (!list) return;
+  
+  list.innerHTML = `
+    <table class="list">
+      <thead><tr>
+        <th style="width: 40px;"><input type="checkbox" id="barcode-select-all" onchange="App.toggleAllBarcodeItems(this.checked)"></th>
+        <th>รหัส</th>
+        <th>ชื่อวัสดุ</th>
+        <th>หมวดหมู่</th>
+        <th>หน่วย</th>
+        <th class="num">คงเหลือ</th>
+      </tr></thead>
+      <tbody>
+        ${filtered.map(s => `
+          <tr>
+            <td><input type="checkbox" class="barcode-item-check" value="${s.id}" onchange="App.updateSelectedCount()"></td>
+            <td class="td-mono">${esc(s.code)}</td>
+            <td><strong>${esc(s.name)}</strong></td>
+            <td><span class="chip-cat">${esc(s.category)}</span></td>
+            <td>${esc(s.unit)}</td>
+            <td class="num">${fmtQty(s.qty)}</td>
+          </tr>
+        `).join('')}
+        ${filtered.length === 0 ? '<tr><td colspan="6"><div class="empty">ไม่พบรายการวัสดุ</div></td></tr>' : ''}
+      </tbody>
+    </table>`;
+  
+  App.updateSelectedCount();
+};
+
+App.toggleAllBarcodeItems = function(checked) {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = checked; });
+  App.updateSelectedCount();
+};
+
+App.selectAllBarcodeItems = function() {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = true; });
+  App.updateSelectedCount();
+};
+
+App.clearBarcodeItems = function() {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = false; });
+  App.updateSelectedCount();
+};
+
+App.updateSelectedCount = function() {
+  const count = document.querySelectorAll('.barcode-item-check:checked').length;
+  const el = document.getElementById('barcode-selected-count');
+  if (el) el.textContent = `เลือก ${count} รายการ`;
+};
+
+App.updateBarcodePreview = function() {
+  const previewArea = document.getElementById('barcode-preview-area');
+  if (previewArea && !previewArea.classList.contains('hidden')) {
+    App.previewBarcodes();
+  }
+};
+
+App.previewBarcodes = function() {
+  const selectedIds = Array.from(document.querySelectorAll('.barcode-item-check:checked')).map(cb => cb.value);
+  if (selectedIds.length === 0) {
+    toast('กรุณาเลือกวัสดุอย่างน้อย 1 รายการ', 'error');
+    return;
+  }
+  
+  const size = document.getElementById('barcode-size').value;
+  const copies = parseInt(document.getElementById('barcode-copies').value) || 1;
+  const barcodeType = document.getElementById('barcode-type').value;
+  const layout = document.getElementById('barcode-layout').value;
+  
+  const sizeMap = {
+    small: { width: 1, height: 40, fontSize: 10, qrSize: 60 },
+    medium: { width: 2, height: 60, fontSize: 12, qrSize: 80 },
+    large: { width: 2, height: 80, fontSize: 14, qrSize: 100 },
+    xlarge: { width: 3, height: 100, fontSize: 16, qrSize: 120 },
+  };
+  const s = sizeMap[size] || sizeMap.medium;
+  
+  const previewArea = document.getElementById('barcode-preview-area');
+  const previewContent = document.getElementById('barcode-preview-content');
+  previewArea.classList.remove('hidden');
+  
+  let html = '';
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      const barcodeHtml = layout !== 'qr-only' ? `<svg class="barcode-svg" id="barcode-${item.id}-${i}" style="max-width: 100%;"></svg>` : '';
+      const qrHtml = layout !== 'barcode-only' ? `<div id="qr-${item.id}-${i}" style="margin-top: 5px;"></div>` : '';
+      
+      html += `
+        <div class="barcode-label" style="border: 1px solid #ddd; padding: 10px; text-align: center; background: white; min-width: 120px;">
+          ${barcodeHtml}
+          ${qrHtml}
+          <div style="font-size: ${s.fontSize}px; margin-top: 5px; font-weight: bold;">${esc(item.name)}</div>
+          <div style="font-size: ${s.fontSize - 2}px; color: #666;">${esc(item.code)}</div>
+        </div>`;
+    }
+  });
+  
+  previewContent.innerHTML = html;
+  
+  setTimeout(() => {
+    selectedIds.forEach(id => {
+      const item = Store.getItem(id);
+      if (!item) return;
+      
+      for (let i = 0; i < copies; i++) {
+        if (layout !== 'qr-only') {
+          const svgEl = document.getElementById(`barcode-${id}-${i}`);
+          if (svgEl && typeof JsBarcode !== 'undefined') {
+            try {
+              JsBarcode(svgEl, item.code, {
+                format: barcodeType,
+                width: s.width,
+                height: s.height,
+                displayValue: layout === 'barcode-only',
+                fontSize: s.fontSize,
+                margin: 5,
+              });
+            } catch (e) {
+              console.error('Barcode generation error:', e);
+            }
+          }
+        }
+        
+        if (layout !== 'barcode-only') {
+          const qrEl = document.getElementById(`qr-${id}-${i}`);
+          if (qrEl && typeof qrcode === 'function') {
+            try {
+              const qr = qrcode(0, 'M');
+              qr.addData(item.code);
+              qr.make();
+              const qrImg = qr.createDataURL(4, 0);
+              qrEl.innerHTML = `<img src="${qrImg}" style="width: ${s.qrSize}px; height: ${s.qrSize}px;">`;
+            } catch (e) {
+              console.error('QR generation error:', e);
+            }
+          }
+        }
+      }
+    });
+  }, 100);
+};
+
+App.printBarcodes = function() {
+  const selectedIds = Array.from(document.querySelectorAll('.barcode-item-check:checked')).map(cb => cb.value);
+  if (selectedIds.length === 0) {
+    toast('กรุณาเลือกวัสดุอย่างน้อย 1 รายการ', 'error');
+    return;
+  }
+  
+  const size = document.getElementById('barcode-size').value;
+  const copies = parseInt(document.getElementById('barcode-copies').value) || 1;
+  const barcodeType = document.getElementById('barcode-type').value;
+  const layout = document.getElementById('barcode-layout').value;
+  
+  const sizeMap = {
+    small: { width: 1, height: 40, fontSize: 10, css: 'width: 40mm; height: 25mm;', qrSize: 50 },
+    medium: { width: 2, height: 60, fontSize: 12, css: 'width: 60mm; height: 35mm;', qrSize: 60 },
+    large: { width: 2, height: 80, fontSize: 14, css: 'width: 80mm; height: 45mm;', qrSize: 70 },
+    xlarge: { width: 3, height: 100, fontSize: 16, css: 'width: 100mm; height: 55mm;', qrSize: 80 },
+  };
+  const s = sizeMap[size] || sizeMap.medium;
+  
+  const qrDataUrls = {};
+  if (layout !== 'barcode-only' && typeof qrcode === 'function') {
+    selectedIds.forEach(id => {
+      const item = Store.getItem(id);
+      if (!item) return;
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(item.code);
+        qr.make();
+        qrDataUrls[id] = qr.createDataURL(4, 0);
+      } catch (e) { /* ignore */ }
+    });
+  }
+  
+  let printContent = '<html><head><title>พิมพ์บาร์โค้ด</title>';
+  printContent += '<style>';
+  printContent += 'body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }';
+  printContent += '.barcode-container { display: flex; flex-wrap: wrap; gap: 5mm; }';
+  printContent += '.barcode-item { border: 1px solid #ccc; padding: 5mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; }';
+  printContent += '.barcode-item svg { max-width: 100%; }';
+  printContent += '.barcode-name { font-size: 10pt; font-weight: bold; margin-top: 2mm; }';
+  printContent += '.barcode-code { font-size: 8pt; color: #666; }';
+  printContent += '.qr-image { margin-top: 2mm; }';
+  printContent += '@media print { .no-print { display: none; } }';
+  printContent += '</style></head><body>';
+  printContent += '<div class="no-print" style="text-align: center; margin-bottom: 10px;">';
+  printContent += '<button onclick="window.print()">พิมพ์</button>';
+  printContent += '<button onclick="window.close()">ปิด</button>';
+  printContent += '</div>';
+  printContent += '<div class="barcode-container">';
+  
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      const barcodeId = `print-barcode-${id}-${i}`;
+      const barcodeHtml = layout !== 'qr-only' ? `<svg id="${barcodeId}"></svg>` : '';
+      const qrHtml = layout !== 'barcode-only' && qrDataUrls[id] 
+        ? `<div class="qr-image"><img src="${qrDataUrls[id]}" style="width: ${s.qrSize}px; height: ${s.qrSize}px;"></div>` 
+        : '';
+      
+      printContent += `
+        <div class="barcode-item" style="${s.css}">
+          ${barcodeHtml}
+          ${qrHtml}
+          <div class="barcode-name">${esc(item.name)}</div>
+          <div class="barcode-code">${esc(item.code)}</div>
+        </div>`;
+    }
+  });
+  
+  printContent += '</div>';
+  printContent += '<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>';
+  printContent += '<script>';
+  printContent += 'window.onload = function() {';
+  
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      if (layout !== 'qr-only') {
+        const barcodeId = `print-barcode-${id}-${i}`;
+        printContent += `try { JsBarcode('#${barcodeId}', '${item.code.replace(/'/g, "\\'")}', { format: '${barcodeType}', width: ${s.width}, height: ${s.height}, displayValue: ${layout === 'barcode-only'}, fontSize: ${s.fontSize}, margin: 5 }); } catch(e) { console.error(e); }`;
+      }
+    }
+  });
+  
+  printContent += '};';
+  printContent += '<\/script></body></html>';
+  
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  } else {
+    toast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ — กรุณาอนุญาต popup', 'error');
+  }
+};
+
+/* ============================================================
    ตารางเส้นทาง (views)
    ============================================================ */
 /* ============================================================
@@ -1736,6 +2071,7 @@ const Views = {
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
+  barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
   users: { title: 'ผู้ใช้งาน', sub: 'จัดการบัญชีและสิทธิ์การใช้งาน', render: renderUsers },
   settings: { title: 'ตั้งค่า', sub: 'ตั้งค่าระบบแจ้งเตือนและการเชื่อมต่อ', render: renderSettings },
 };

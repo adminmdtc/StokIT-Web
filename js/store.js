@@ -5,6 +5,7 @@
    ============================================================ */
 
 const DB_KEY = 'it_stock_db_v5';
+const SYNC_BASE_KEY = 'it_stock_sync_base_v1';
 const SESSION_KEY = 'it_stock_session_v1';
 
 /* ---------- ตัวช่วย ---------- */
@@ -111,6 +112,15 @@ function buildSeed() {
 /* ---------- Store API ---------- */
 const Store = {
   db: null,
+  _lastSyncedDb: null, // base snapshot สำหรับเปรียบเทียบ conflict
+  _currentUserId: null, // ผู้ใช้ปัจจุบันสำหรับ stamped updatedBy
+
+  /* stamp เวลาแก้ไขทุก record */
+  _stamp(obj) {
+    obj.updatedAt = Date.now();
+    if (this._currentUserId) obj.updatedBy = this._currentUserId;
+    return obj;
+  },
 
   load() {
     try {
@@ -123,6 +133,64 @@ const Store = {
     this.db = buildSeed();
     this.save();
     return this.db;
+  },
+
+  /* บันทึก snapshot base หลัง sync จาก Firebase */
+  _saveSyncBase() {
+    try { localStorage.setItem(SYNC_BASE_KEY, JSON.stringify(this.db)); } catch (e) { /* ignore */ }
+  },
+
+  /* โหลด snapshot base ที่บันทึกไว้ */
+  _loadSyncBase() {
+    try {
+      const raw = localStorage.getItem(SYNC_BASE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) { return null; }
+  },
+
+  /* คืน local changes ตั้งแต่ sync ล่าสุด */
+  _getLocalChangesSinceSync() {
+    const base = this._lastSyncedDb || this._loadSyncBase();
+    if (!base) return null; // ไม่มี base = first sync
+    const changes = { items: {}, transactions: {}, users: {}, seq: null };
+    const bMap = {};
+    (base.items || []).forEach(i => bMap[i.id] = i);
+    (this.db.items || []).forEach(i => {
+      const b = bMap[i.id];
+      if (!b) changes.items[i.id] = { type: 'add', local: i };
+      else {
+        const diffs = this._fieldDiffs(b, i, ['id']);
+        if (diffs.length) changes.items[i.id] = { type: 'update', local: i, base: b, diffs };
+      }
+    });
+    (base.items || []).forEach(i => {
+      if (!this.db.items.find(x => x.id === i.id))
+        changes.items[i.id] = { type: 'delete', base: i };
+    });
+    /* transactions & users — เปรียบเทียบ id set */
+    const bTxIds = new Set((base.transactions || []).map(t => t.id));
+    const lTxIds = new Set((this.db.transactions || []).map(t => t.id));
+    (this.db.transactions || []).forEach(t => {
+      if (!bTxIds.has(t.id)) changes.transactions[t.id] = { type: 'add', local: t };
+    });
+    const bUsrIds = new Set((base.users || []).map(u => u.id));
+    (this.db.users || []).forEach(u => {
+      if (!bUsrIds.has(u.id)) changes.users[u.id] = { type: 'add', local: u };
+    });
+    return changes;
+  },
+
+  /* เปรียบเทียบ field 2 วัตถุ คืน field ที่ต่างกัน */
+  _fieldDiffs(a, b, exclude = []) {
+    const diffs = [];
+    const allKeys = new Set([...Object.keys(a), ...Object.keys(b)]);
+    allKeys.forEach(k => {
+      if (exclude.includes(k)) return;
+      const va = JSON.stringify(a[k]);
+      const vb = JSON.stringify(b[k]);
+      if (va !== vb) diffs.push({ field: k, localVal: b[k], baseVal: a[k] });
+    });
+    return diffs;
   },
 
   /* โหลดข้อมูลจาก Firebase (ถ้ามี) */
@@ -141,7 +209,12 @@ const Store = {
     return false;
   },
   async save() {
+    // อัพเดท timestamp สำหรับ sync
+    this.db._lastSync = Date.now();
+    this.db._lastUpdate = new Date().toISOString();
+    
     localStorage.setItem(DB_KEY, JSON.stringify(this.db));
+    
     // Auto sync to Firebase (await to ensure sync)
     if (typeof autoSyncToFirebase === 'function') {
       try {
@@ -176,6 +249,7 @@ const Store = {
     const it = Object.assign(defaults, data);
     /* ถ้าไม่มี code ให้สร้างอัตโนมัติ */
     if (!it.code || it.code === '') it.code = this.nextItemCode();
+    this._stamp(it);
     this.db.items.push(it);
     this.save();
     return it;
@@ -184,17 +258,19 @@ const Store = {
     const it = this.getItem(id);
     if (!it) return null;
     Object.assign(it, data);
+    this._stamp(it);
     this.save();
     return it;
   },
   deleteItem(id) { this.db.items = this.db.items.filter(i => i.id !== id); this.save(); },
 
-  addTransaction(tx) { this.db.transactions.unshift(tx); this.save(); return tx; },
+  addTransaction(tx) { this._stamp(tx); this.db.transactions.unshift(tx); this.save(); return tx; },
   deleteTransaction(id) { this.db.transactions = this.db.transactions.filter(t => t.id !== id); this.save(); },
 
   addUser(data) {
     const u = Object.assign({ id: uid('u'), role: 'user' }, data);
     u.password = hashStr(u.password);
+    this._stamp(u);
     this.db.users.push(u);
     this.save();
     return u;
@@ -204,6 +280,7 @@ const Store = {
     if (!u) return null;
     if (data.password) data.password = hashStr(data.password);
     Object.assign(u, data);
+    this._stamp(u);
     this.save();
     return u;
   },
@@ -291,6 +368,7 @@ const Auth = {
       const s = JSON.parse(localStorage.getItem(SESSION_KEY));
       if (!s) return null;
       const u = Store.users().find(x => x.id === s.userId);
+      if (u) Store._currentUserId = u.id;
       return u || null;
     } catch (e) { return null; }
   },
@@ -298,9 +376,10 @@ const Auth = {
     const u = Store.findUser(username);
     if (!u || u.password !== hashStr(password)) return null;
     localStorage.setItem(SESSION_KEY, JSON.stringify({ userId: u.id, at: Date.now() }));
+    Store._currentUserId = u.id;
     return u;
   },
-  logout() { localStorage.removeItem(SESSION_KEY); },
+  logout() { localStorage.removeItem(SESSION_KEY); Store._currentUserId = null; },
   changePassword(userId, cur, np) {
     const u = Store.users().find(x => x.id === userId);
     if (!u || u.password !== hashStr(cur)) return false;

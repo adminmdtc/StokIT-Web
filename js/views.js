@@ -1523,6 +1523,19 @@ function renderSettings() {
         <input type="checkbox" id="sync-notify-toggle" ${localStorage.getItem('it_stock_sync_notify') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncNotify(this.checked)"> แจ้งเตือน sync
       </label>
     </div>
+    <div style="margin-bottom:15px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <label class="muted small" style="margin:0;font-weight:500">⏱️ ซิงค์ข้อมูลอัตโนมัติทุก:</label>
+        <select id="sync-interval-select" class="input" style="width:auto;padding:6px 12px" onchange="App.updateSyncInterval(this.value)">
+          <option value="5" ${parseInt(localStorage.getItem('it_stock_sync_interval') || '10') === 5 ? 'selected' : ''}>5 วินาที (เร็วมาก)</option>
+          <option value="10" ${parseInt(localStorage.getItem('it_stock_sync_interval') || '10') === 10 ? 'selected' : ''}>10 วินาที (แนะนำ)</option>
+          <option value="30" ${parseInt(localStorage.getItem('it_stock_sync_interval') || '10') === 30 ? 'selected' : ''}>30 วินาที (ประหยัด)</option>
+          <option value="60" ${parseInt(localStorage.getItem('it_stock_sync_interval') || '10') === 60 ? 'selected' : ''}>1 นาที</option>
+          <option value="120" ${parseInt(localStorage.getItem('it_stock_sync_interval') || '10') === 120 ? 'selected' : ''}>2 นาที</option>
+        </select>
+        <span class="muted small">ระหว่างรอ sync อัตโนมัติ ระบบจะตรวจสอบ connection อยู่ตลอด</span>
+      </div>
+    </div>
     <form id="fb-form" class="form-grid" onsubmit="return false">
       <div class="field full">
         <label>API Key</label>
@@ -1556,6 +1569,44 @@ function renderSettings() {
         <li>ไปที่ Project Settings → General → คัดลอก Config มาใส่ด้านบน</li>
       </ol>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h3>🌐 Local Network Sync (ซิงค์บนเครือข่ายท้องถิ่น)</h3>
+      <p class="muted small">ซิงค์ข้อมูลผ่าน WiFi โดยไม่ต้องพึ่งอินเทอร์เน็ต — ต้องรัน Local Sync Server บนเครื่องใดเครื่องหนึ่ง</p></div></div>
+    ${(() => {
+      const localUrl = localStorage.getItem('it_stock_local_sync_url') || '';
+      const localConnected = (typeof HybridSync !== 'undefined' && HybridSync.state && HybridSync.state.localConnected);
+      return `
+    <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      ${localConnected ? '<span class="badge badge-success">✅ เชื่อมต่อ Local แล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่เชื่อมต่อ Local</span>'}
+    </div>
+    <form id="local-sync-form" class="form-grid" onsubmit="return false">
+      <div class="field full">
+        <label>Local Sync Server URL</label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input class="input" id="local-sync-url" value="${esc(localUrl)}" placeholder="http://192.168.1.100:3766" style="flex:1;min-width:200px">
+          <button type="button" class="btn btn-outline" onclick="App.testLocalSync()" style="white-space:nowrap">${icon('send', 16)} ทดสอบ</button>
+          <button type="button" class="btn btn-soft" onclick="App.scanLocalNetwork()" style="white-space:nowrap">${icon('search', 16)} สแกน</button>
+        </div>
+        <span class="muted small">ใส่ IP ของเครื่องที่รัน Local Sync Server (ต้องเชื่อม WiFi เดียวกัน)</span>
+      </div>
+    </form>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="App.saveLocalSyncConfig()">${icon('check', 16)} บันทึกและเชื่อมต่อ</button>
+      ${localConnected ? `<button class="btn btn-danger" onclick="HybridSync.setLocalServer(null); toast('ปิด Local Sync แล้ว'); route();">${icon('x', 16)} ยกเลิก</button>` : ''}
+    </div>
+    <div class="muted small" style="margin-top:15px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+      <strong>💡 วิธีใช้ Local Network Sync:</strong>
+      <ol style="margin:5px 0;padding-left:20px">
+        <li>รัน Local Sync Server บน PC: <code>node server/local-sync.js</code></li>
+        <li>ดู IP ที่แสดงใน terminal (เช่น 192.168.1.100:3766)</li>
+        <li>ใส่ URL ด้านบนแล้วกด "บันทึกและเชื่อมต่อ"</li>
+        <li>อุปกรณ์อื่นใน WiFi เดียวกัน ใส่ URL เดียวกันก็จะซิงค์ข้อมูลได้</li>
+      </ol>
+      <p style="margin-top:8px"><strong>ข้อดี:</strong> ซิงค์เร็วกว่า Firebase มาก และไม่ต้องพึ่งอินเทอร์เน็ต</p>
+    </div>`;
+    })()}
   </div>
 
   <div class="card">
@@ -1716,6 +1767,442 @@ App.disconnectFirebase = function () {
   route();
 };
 
+App.updateSyncInterval = function (value) {
+  const seconds = parseInt(value) || 10;
+  localStorage.setItem('it_stock_sync_interval', seconds.toString());
+  FirebaseDB.setSyncInterval(seconds);
+  toast(`ตั้งค่าซิงค์อัตโนมัติทุก ${seconds} วินาทีแล้ว`, 'success');
+};
+
+/* ============================================================
+   Local Sync Functions
+   ============================================================ */
+
+App.saveLocalSyncConfig = async function () {
+  const url = document.getElementById('local-sync-url').value.trim();
+  
+  if (!url) {
+    HybridSync.setLocalServer(null);
+    toast('ปิดการซิงค์ Local Network', 'info');
+    route();
+    return;
+  }
+  
+  // ตรวจสอบ URL format
+  if (!url.startsWith('http')) {
+    toast('กรุณาใส่ URL ที่ถูกต้อง เช่น http://192.168.1.100:3766', 'error');
+    return;
+  }
+  
+  // ทดสอบการเชื่อมต่อ
+  toast('กำลังทดสอบการเชื่อมต่อ...', 'info');
+  const result = await HybridSync.testLocalConnection(url);
+  
+  if (result.success) {
+    HybridSync.setLocalServer(url);
+    toast('เชื่อมต่อ Local Sync สำเร็จ!', 'success');
+    route();
+  } else {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + result.error, 'error');
+  }
+};
+
+App.testLocalSync = async function () {
+  const url = document.getElementById('local-sync-url').value.trim();
+  
+  if (!url) {
+    toast('กรุณาใส่ URL ของ Local Sync Server', 'error');
+    return;
+  }
+  
+  toast('กำลังทดสอบ...', 'info');
+  const result = await HybridSync.testLocalConnection(url);
+  
+  if (result.success) {
+    toast('เชื่อมต่อสำเร็จ! จำนวน clients: ' + result.data.clients, 'success');
+  } else {
+    toast('เชื่อมต่อไม่สำเร็จ: ' + result.error, 'error');
+  }
+};
+
+App.scanLocalNetwork = async function () {
+  toast('กำลังสแกนเครือข่าย...', 'info');
+  
+  // ลองเชื่อมต่อ IP ที่พบบ่อย
+  const commonPorts = [3766, 3000, 8080];
+  const found = [];
+  
+  // ใช้ IP จาก URL ปัจจุบัน
+  const currentHost = window.location.hostname;
+  
+  for (const port of commonPorts) {
+    try {
+      const url = `http://${currentHost}:${port}`;
+      const result = await HybridSync.testLocalConnection(url);
+      if (result.success) {
+        found.push({ url, data: result.data });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  
+  if (found.length > 0) {
+    const servers = found.map(s => `${s.url} (${s.data.clients} clients)`).join('\n');
+    toast(`พบ ${found.length} เซิร์ฟเวอร์:\n${servers}`, 'success');
+    
+    // เลือกตัวแรก
+    document.getElementById('local-sync-url').value = found[0].url;
+  } else {
+    toast('ไม่พบ Local Sync Server ในเครือข่าย', 'error');
+  }
+};
+
+/* ============================================================
+   พิมพ์บาร์โค้ด
+   ============================================================ */
+function renderBarcode() {
+  const stock = Store.getStock();
+  const categories = Store.categories();
+  
+  return `
+  <div class="card">
+    <div class="card-head"><div><h3>พิมพ์บาร์โค้ดวัสดุ</h3><p class="muted small">เลือกวัสดุที่ต้องการพิมพ์บาร์โค้ด พร้อมตั้งค่าขนาดและจำนวน</p></div></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>เลือกหมวดหมู่</label>
+        <select id="barcode-category" class="input" onchange="App.filterBarcodeItems()">
+          <option value="">ทุกหมวดหมู่</option>
+          ${categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field">
+        <label>ขนาดบาร์โค้ด</label>
+        <select id="barcode-size" class="input" onchange="App.updateBarcodePreview()">
+          <option value="small">เล็ก (40x20mm)</option>
+          <option value="medium" selected>กลาง (60x30mm)</option>
+          <option value="large">ใหญ่ (80x40mm)</option>
+          <option value="xlarge">ใหญ่มาก (100x50mm)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>จำนวนต่อรายการ</label>
+        <input type="number" id="barcode-copies" class="input" min="1" max="20" value="1" onchange="App.updateBarcodePreview()">
+      </div>
+      <div class="field">
+        <label>ประเภทบาร์โค้ด</label>
+        <select id="barcode-type" class="input" onchange="App.updateBarcodePreview()">
+          <option value="CODE128">CODE128 (ทั่วไป)</option>
+          <option value="CODE39">CODE39</option>
+          <option value="EAN13">EAN-13</option>
+          <option value="EAN8">EAN-8</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>รูปแบบป้าย</label>
+        <select id="barcode-layout" class="input" onchange="App.updateBarcodePreview()">
+          <option value="barcode-only">บาร์โค้ดอย่างเดียว</option>
+          <option value="qr-only">QR Code อย่างเดียว</option>
+          <option value="both" selected>บาร์โค้ด + QR Code</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="field">
+      <label>เลือกวัสดุที่ต้องการพิมพ์</label>
+      <div style="margin-bottom: 8px;">
+        <button type="button" class="btn btn-soft btn-sm" onclick="App.selectAllBarcodeItems()">เลือกทั้งหมด</button>
+        <button type="button" class="btn btn-ghost btn-sm" onclick="App.clearBarcodeItems()">ล้างเลือก</button>
+        <span id="barcode-selected-count" class="muted small" style="margin-left: 10px;">เลือก 0 รายการ</span>
+      </div>
+      <div id="barcode-items-list" class="table-wrap" style="max-height: 400px; overflow-y: auto;">
+        <!-- รายการวัสดุจะแสดงที่นี่ -->
+      </div>
+    </div>
+    
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary" onclick="App.printBarcodes()">
+        ${icon('printer', 16)} พิมพ์บาร์โค้ด
+      </button>
+      <button type="button" class="btn btn-soft" onclick="App.previewBarcodes()">
+        ${icon('eye', 16)} ดูตัวอย่าง
+      </button>
+    </div>
+  </div>
+  
+  <div id="barcode-preview-area" class="card hidden">
+    <div class="card-head"><div><h3>ตัวอย่างบาร์โค้ด</h3></div></div>
+    <div id="barcode-preview-content" class="label-sheet" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 15px;"></div>
+  </div>`;
+}
+
+function initBarcode() {
+  App.filterBarcodeItems();
+}
+
+App.filterBarcodeItems = function() {
+  const category = document.getElementById('barcode-category').value;
+  const stock = Store.getStock();
+  const filtered = category ? stock.filter(s => s.category === category) : stock;
+  
+  const list = document.getElementById('barcode-items-list');
+  if (!list) return;
+  
+  list.innerHTML = `
+    <table class="list">
+      <thead><tr>
+        <th style="width: 40px;"><input type="checkbox" id="barcode-select-all" onchange="App.toggleAllBarcodeItems(this.checked)"></th>
+        <th>รหัส</th>
+        <th>ชื่อวัสดุ</th>
+        <th>หมวดหมู่</th>
+        <th>หน่วย</th>
+        <th class="num">คงเหลือ</th>
+      </tr></thead>
+      <tbody>
+        ${filtered.map(s => `
+          <tr>
+            <td><input type="checkbox" class="barcode-item-check" value="${s.id}" onchange="App.updateSelectedCount()"></td>
+            <td class="td-mono">${esc(s.code)}</td>
+            <td><strong>${esc(s.name)}</strong></td>
+            <td><span class="chip-cat">${esc(s.category)}</span></td>
+            <td>${esc(s.unit)}</td>
+            <td class="num">${fmtQty(s.qty)}</td>
+          </tr>
+        `).join('')}
+        ${filtered.length === 0 ? '<tr><td colspan="6"><div class="empty">ไม่พบรายการวัสดุ</div></td></tr>' : ''}
+      </tbody>
+    </table>`;
+  
+  App.updateSelectedCount();
+};
+
+App.toggleAllBarcodeItems = function(checked) {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = checked; });
+  App.updateSelectedCount();
+};
+
+App.selectAllBarcodeItems = function() {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = true; });
+  App.updateSelectedCount();
+};
+
+App.clearBarcodeItems = function() {
+  document.querySelectorAll('.barcode-item-check').forEach(cb => { cb.checked = false; });
+  App.updateSelectedCount();
+};
+
+App.updateSelectedCount = function() {
+  const count = document.querySelectorAll('.barcode-item-check:checked').length;
+  const el = document.getElementById('barcode-selected-count');
+  if (el) el.textContent = `เลือก ${count} รายการ`;
+};
+
+App.updateBarcodePreview = function() {
+  // Update preview if visible
+  const previewArea = document.getElementById('barcode-preview-area');
+  if (previewArea && !previewArea.classList.contains('hidden')) {
+    App.previewBarcodes();
+  }
+};
+
+App.previewBarcodes = function() {
+  const selectedIds = Array.from(document.querySelectorAll('.barcode-item-check:checked')).map(cb => cb.value);
+  if (selectedIds.length === 0) {
+    toast('กรุณาเลือกวัสดุอย่างน้อย 1 รายการ', 'error');
+    return;
+  }
+  
+  const size = document.getElementById('barcode-size').value;
+  const copies = parseInt(document.getElementById('barcode-copies').value) || 1;
+  const barcodeType = document.getElementById('barcode-type').value;
+  const layout = document.getElementById('barcode-layout').value;
+  
+  const sizeMap = {
+    small: { width: 1, height: 40, fontSize: 10, qrSize: 60 },
+    medium: { width: 2, height: 60, fontSize: 12, qrSize: 80 },
+    large: { width: 2, height: 80, fontSize: 14, qrSize: 100 },
+    xlarge: { width: 3, height: 100, fontSize: 16, qrSize: 120 },
+  };
+  const s = sizeMap[size] || sizeMap.medium;
+  
+  const previewArea = document.getElementById('barcode-preview-area');
+  const previewContent = document.getElementById('barcode-preview-content');
+  previewArea.classList.remove('hidden');
+  
+  let html = '';
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      const barcodeHtml = layout !== 'qr-only' ? `<svg class="barcode-svg" id="barcode-${item.id}-${i}" style="max-width: 100%;"></svg>` : '';
+      const qrHtml = layout !== 'barcode-only' ? `<div id="qr-${item.id}-${i}" style="margin-top: 5px;"></div>` : '';
+      
+      html += `
+        <div class="barcode-label" style="border: 1px solid #ddd; padding: 10px; text-align: center; background: white; min-width: 120px;">
+          ${barcodeHtml}
+          ${qrHtml}
+          <div style="font-size: ${s.fontSize}px; margin-top: 5px; font-weight: bold;">${esc(item.name)}</div>
+          <div style="font-size: ${s.fontSize - 2}px; color: #666;">${esc(item.code)}</div>
+        </div>`;
+    }
+  });
+  
+  previewContent.innerHTML = html;
+  
+  // Generate barcodes and QR codes
+  setTimeout(() => {
+    selectedIds.forEach(id => {
+      const item = Store.getItem(id);
+      if (!item) return;
+      
+      for (let i = 0; i < copies; i++) {
+        // Generate barcode
+        if (layout !== 'qr-only') {
+          const svgEl = document.getElementById(`barcode-${id}-${i}`);
+          if (svgEl && typeof JsBarcode !== 'undefined') {
+            try {
+              JsBarcode(svgEl, item.code, {
+                format: barcodeType,
+                width: s.width,
+                height: s.height,
+                displayValue: layout === 'barcode-only',
+                fontSize: s.fontSize,
+                margin: 5,
+              });
+            } catch (e) {
+              console.error('Barcode generation error:', e);
+              svgEl.insertAdjacentHTML('afterend', '<div style="color: red; font-size: 12px;">ไม่สามารถสร้างบาร์โค้ดได้</div>');
+            }
+          }
+        }
+        
+        // Generate QR code
+        if (layout !== 'barcode-only') {
+          const qrEl = document.getElementById(`qr-${id}-${i}`);
+          if (qrEl && typeof qrcode === 'function') {
+            try {
+              const qr = qrcode(0, 'M');
+              qr.addData(item.code);
+              qr.make();
+              const qrImg = qr.createDataURL(4, 0);
+              qrEl.innerHTML = `<img src="${qrImg}" style="width: ${s.qrSize}px; height: ${s.qrSize}px;">`;
+            } catch (e) {
+              console.error('QR generation error:', e);
+              qrEl.innerHTML = '<div style="color: red; font-size: 12px;">ไม่สามารถสร้าง QR ได้</div>';
+            }
+          }
+        }
+      }
+    });
+  }, 100);
+};
+
+App.printBarcodes = function() {
+  const selectedIds = Array.from(document.querySelectorAll('.barcode-item-check:checked')).map(cb => cb.value);
+  if (selectedIds.length === 0) {
+    toast('กรุณาเลือกวัสดุอย่างน้อย 1 รายการ', 'error');
+    return;
+  }
+  
+  const size = document.getElementById('barcode-size').value;
+  const copies = parseInt(document.getElementById('barcode-copies').value) || 1;
+  const barcodeType = document.getElementById('barcode-type').value;
+  const layout = document.getElementById('barcode-layout').value;
+  
+  const sizeMap = {
+    small: { width: 1, height: 40, fontSize: 10, css: 'width: 40mm; height: 25mm;', qrSize: 50 },
+    medium: { width: 2, height: 60, fontSize: 12, css: 'width: 60mm; height: 35mm;', qrSize: 60 },
+    large: { width: 2, height: 80, fontSize: 14, css: 'width: 80mm; height: 45mm;', qrSize: 70 },
+    xlarge: { width: 3, height: 100, fontSize: 16, css: 'width: 100mm; height: 55mm;', qrSize: 80 },
+  };
+  const s = sizeMap[size] || sizeMap.medium;
+  
+  // Pre-generate QR codes as data URLs
+  const qrDataUrls = {};
+  if (layout !== 'barcode-only' && typeof qrcode === 'function') {
+    selectedIds.forEach(id => {
+      const item = Store.getItem(id);
+      if (!item) return;
+      try {
+        const qr = qrcode(0, 'M');
+        qr.addData(item.code);
+        qr.make();
+        qrDataUrls[id] = qr.createDataURL(4, 0);
+      } catch (e) {
+        console.error('QR generation error:', e);
+      }
+    });
+  }
+  
+  let printContent = '<html><head><title>พิมพ์บาร์โค้ด</title>';
+  printContent += '<style>';
+  printContent += 'body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }';
+  printContent += '.barcode-container { display: flex; flex-wrap: wrap; gap: 5mm; }';
+  printContent += '.barcode-item { border: 1px solid #ccc; padding: 5mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; }';
+  printContent += '.barcode-item svg { max-width: 100%; }';
+  printContent += '.barcode-name { font-size: 10pt; font-weight: bold; margin-top: 2mm; }';
+  printContent += '.barcode-code { font-size: 8pt; color: #666; }';
+  printContent += '.qr-image { margin-top: 2mm; }';
+  printContent += '@media print { .no-print { display: none; } }';
+  printContent += '</style></head><body>';
+  printContent += '<div class="no-print" style="text-align: center; margin-bottom: 10px;">';
+  printContent += '<button onclick="window.print()">พิมพ์</button>';
+  printContent += '<button onclick="window.close()">ปิด</button>';
+  printContent += '</div>';
+  printContent += '<div class="barcode-container">';
+  
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      const barcodeId = `print-barcode-${id}-${i}`;
+      const barcodeHtml = layout !== 'qr-only' ? `<svg id="${barcodeId}"></svg>` : '';
+      const qrHtml = layout !== 'barcode-only' && qrDataUrls[id] 
+        ? `<div class="qr-image"><img src="${qrDataUrls[id]}" style="width: ${s.qrSize}px; height: ${s.qrSize}px;"></div>` 
+        : '';
+      
+      printContent += `
+        <div class="barcode-item" style="${s.css}">
+          ${barcodeHtml}
+          ${qrHtml}
+          <div class="barcode-name">${esc(item.name)}</div>
+          <div class="barcode-code">${esc(item.code)}</div>
+        </div>`;
+    }
+  });
+  
+  printContent += '</div>';
+  printContent += '<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"><\/script>';
+  printContent += '<script>';
+  printContent += 'window.onload = function() {';
+  
+  selectedIds.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    
+    for (let i = 0; i < copies; i++) {
+      if (layout !== 'qr-only') {
+        const barcodeId = `print-barcode-${id}-${i}`;
+        printContent += `try { JsBarcode('#${barcodeId}', '${item.code.replace(/'/g, "\\'")}', { format: '${barcodeType}', width: ${s.width}, height: ${s.height}, displayValue: ${layout === 'barcode-only'}, fontSize: ${s.fontSize}, margin: 5 }); } catch(e) { console.error(e); }`;
+      }
+    }
+  });
+  
+  printContent += '};';
+  printContent += '<\/script></body></html>';
+  
+  // Open print window
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(printContent);
+    printWindow.document.close();
+  } else {
+    toast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ — กรุณาอนุญาต popup', 'error');
+  }
+};
+
 /* ============================================================
    ตารางเส้นทาง (views)
    ============================================================ */
@@ -1736,6 +2223,7 @@ const Views = {
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
+  barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
   users: { title: 'ผู้ใช้งาน', sub: 'จัดการบัญชีและสิทธิ์การใช้งาน', render: renderUsers },
   settings: { title: 'ตั้งค่า', sub: 'ตั้งค่าระบบแจ้งเตือนและการเชื่อมต่อ', render: renderSettings },
 };

@@ -1,0 +1,54 @@
+{
+  "name": "IT Stock — ระบบบริหารจัดการวัสดุ",
+  "short_name": "IT Stock",
+  "description": "ระบบบริหารจัดการวัสดุและอุปกรณ์ กลุ่มงานเทคโนโลยีสารสนเทศ",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0f172a",
+  "theme_color": "#3b82f6",
+  "scope": "/",
+  "lang": "th",
+  "categories": ["business", "utilities"],
+  "icons": [
+    {
+      "src": "assets/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/icon.png",
+      "sizes": "256x256",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "รับเข้าวัสดุ",
+      "short_name": "รับเข้า",
+      "url": "/#/receive",
+      "icons": [{ "src": "assets/icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "จำหน่าย/เบิก",
+      "short_name": "เบิกจ่าย",
+      "url": "/#/issue",
+      "icons": [{ "src": "assets/icon.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "คงเหลือ",
+      "short_name": "คงเหลือ",
+      "url": "/#/stock",
+      "icons": [{ "src": "assets/icon.png", "sizes": "192x192" }]
+    }
+  ]
+}

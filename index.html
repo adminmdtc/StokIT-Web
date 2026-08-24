@@ -2,12 +2,33 @@
 <html lang="th">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>IT Stock — ระบบบริหารจัดการวัสดุ กลุ่มงานไอที</title>
-<link rel="icon" href="data:,">
+
+<!-- PWA Meta Tags -->
+<meta name="theme-color" content="#3b82f6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="IT Stock">
+<meta name="application-name" content="IT Stock">
+<meta name="description" content="ระบบบริหารจัดการวัสดุและอุปกรณ์ กลุ่มงานเทคโนโลยีสารสนเทศ">
+
+<!-- PWA Manifest -->
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="assets/icon-512.svg">
+<link rel="icon" type="image/svg+xml" href="assets/icon-512.svg">
+<link rel="icon" type="image/png" href="assets/icon.png">
+
+<!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+<!-- Styles -->
 <link rel="stylesheet" href="css/styles.css">
+
+<!-- iOS Splash Screens -->
+<link rel="apple-touch-startup-image" href="assets/icon.png">
 </head>
 <body>
 
@@ -71,6 +92,10 @@
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
         <span>รายงาน</span>
       </a>
+      <a href="#/barcode" data-route="barcode" class="nav-item">
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5v14"/><path d="M8 5v14"/><path d="M12 5v14"/><path d="M17 5v14"/><path d="M21 5v14"/></svg>
+        <span>พิมพ์บาร์โค้ด</span>
+      </a>
       <a href="#/users" data-route="users" class="nav-item hidden" id="nav-users">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span>ผู้ใช้งาน</span>
@@ -124,14 +149,67 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
 <script src="js/missions.js"></script>
 <script src="js/receivers.js"></script>
 <script src="js/firebase.js"></script>
+<script src="js/hybrid-sync.js"></script>
 <script src="js/store.js"></script>
+<script src="js/conflict.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/export.js"></script>
 <script src="js/telegram.js"></script>
 <script src="js/views.js"></script>
 <script src="js/app.js"></script>
+
+<!-- Service Worker Registration -->
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then(reg => {
+        console.log('Service Worker registered:', reg.scope);
+        
+        // ตรวจสอบ update
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated') {
+              console.log('New Service Worker activated');
+              // แจ้งเตือนผู้ใช้ (optional)
+              if (typeof toast === 'function') {
+                toast('มีเวอร์ชันใหม่ — รีเฟรชหน้าเพื่ออัพเดท', 'info');
+              }
+            }
+          });
+        });
+      })
+      .catch(err => console.log('SW registration failed:', err));
+  });
+}
+
+// แจ้งเตือนเมื่อ app พร้อมติดตั้ง (A2HS)
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  console.log('PWA install prompt available');
+  // แสดงปุ่มติดตั้ง (optional)
+  window.__showInstallPrompt = () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(choice => {
+        console.log('Install choice:', choice.outcome);
+        deferredPrompt = null;
+      });
+    }
+  };
+});
+
+window.addEventListener('appinstalled', () => {
+  console.log('IT Stock PWA installed');
+  deferredPrompt = null;
+});
+</script>
 </body>
 </html>

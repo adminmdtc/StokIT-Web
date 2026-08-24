@@ -12,6 +12,7 @@ const FirebaseDB = {
   config: null,
   _listeners: [],
   _syncing: false,
+  _justSynced: false,
   _periodicInterval: null,
   _statusCallbacks: [],
 
@@ -116,7 +117,7 @@ const FirebaseDB = {
      Sync Operations
      ============================================================ */
 
-  /* ซิงค์ข้อมูลทั้งหมดจาก Firebase ลง local */
+  /* ซิงค์ข้อมูลทั้งหมดจาก Firebase ลง local (พร้อม conflict detection) */
   async syncFromFirebase() {
     if (!this.connected || !this.db) return false;
     if (this._syncing) return false; // ป้องกัน sync ซ้ำ
@@ -128,9 +129,36 @@ const FirebaseDB = {
       const data = snapshot.val();
       
       if (data && typeof data === 'object') {
-        // Force update Store.db ทั้งหมด
+        // ตรวจจับ conflict
+        const conflictResult = ConflictResolver.detectConflicts(data);
+        
+        if (conflictResult && conflictResult.hasConflict) {
+          // มี conflict → แสดง modal resolution
+          console.log('Conflicts detected:', conflictResult.conflicts.length);
+          this._emitStatus('connected', 'ตรวจพบข้อมูลขัดแย้ง');
+          
+          // บันทึก remote data เพื่อใช้ใน resolution
+          window.__currentConflictResult = conflictResult;
+          
+          // แสดง modal (ต้องรอให้ UI พร้อม)
+          setTimeout(() => {
+            const html = ConflictResolver.renderConflictModal(conflictResult);
+            if (html) openModal(`<div class="modal-head"><h3>แก้ไขข้อมูลขัดแย้ง</h3></div><div class="modal-body">${html}</div>`, { wide: true, noDismiss: true });
+          }, 100);
+          
+          return false; // ไม่ sync อัตโนมัติ รอผู้ใช้แก้ conflict
+        }
+        
+        if (conflictResult && conflictResult.autoMergeable.length > 0) {
+          // ไม่มี conflict แต่มีข้อมูลต่างกัน → auto merge
+          console.log('Auto-merging', conflictResult.autoMergeable.length, 'changes');
+          ConflictResolver.autoMerge(conflictResult);
+        }
+        
+        // ไม่มี conflict → force update ตามเดิม
         Store.db = data;
         localStorage.setItem(DB_KEY, JSON.stringify(data));
+        Store._saveSyncBase();
         console.log('Synced from Firebase:', Object.keys(data));
         this._emitStatus('connected', 'เชื่อมต่อแล้ว');
         return true;
@@ -152,9 +180,11 @@ const FirebaseDB = {
     if (this._syncing) return false;
     
     this._syncing = true;
+    this._justSynced = true;
     this._emitStatus('syncing', 'กำลังบันทึก...');
     try {
       await this.db.ref('itstock').set(Store.db);
+      Store._saveSyncBase();
       console.log('Synced to Firebase');
       this._emitStatus('connected', 'เชื่อมต่อแล้ว');
       return true;
@@ -167,7 +197,7 @@ const FirebaseDB = {
     }
   },
 
-  /* ฟังการเปลี่ยนแปลงแบบ real-time */
+  /* ฟังการเปลี่ยนแปลงแบบ real-time (พร้อม conflict detection) */
   onChanges(callback) {
     if (!this.connected || !this.db) return;
     
@@ -179,9 +209,40 @@ const FirebaseDB = {
     ref.on('value', async (snapshot) => {
       const data = snapshot.val();
       if (data && typeof data === 'object') {
-        // Force update เสมอ — ไม่เปรียบเทียบ
+        // ถ้าเพิ่ง syncToFirebase ให้ข้าม conflict detection (เป็น echo ของตัวเอง)
+        if (this._justSynced) {
+          this._justSynced = false;
+          Store.db = data;
+          localStorage.setItem(DB_KEY, JSON.stringify(data));
+          Store._saveSyncBase();
+          console.log('Firebase echo after syncTo — skip conflict detection');
+          if (callback) callback(data);
+          return;
+        }
+        
+        // ตรวจจับ conflict ก่อน force update
+        const conflictResult = ConflictResolver.detectConflicts(data);
+        
+        if (conflictResult && conflictResult.hasConflict) {
+          console.log('Real-time conflict detected:', conflictResult.conflicts.length);
+          this._emitStatus('connected', 'ตรวจพบข้อมูลขัดแย้ง');
+          window.__currentConflictResult = conflictResult;
+          setTimeout(() => {
+            const html = ConflictResolver.renderConflictModal(conflictResult);
+            if (html) openModal(`<div class="modal-head"><h3>แก้ไขข้อมูลขัดแย้ง</h3></div><div class="modal-body">${html}</div>`, { wide: true, noDismiss: true });
+          }, 100);
+          return; // ไม่ sync อัตโนมัติ
+        }
+        
+        if (conflictResult && conflictResult.autoMergeable.length > 0) {
+          console.log('Real-time auto-merge:', conflictResult.autoMergeable.length, 'changes');
+          ConflictResolver.autoMerge(conflictResult);
+        }
+        
+        // Force update
         Store.db = data;
         localStorage.setItem(DB_KEY, JSON.stringify(data));
+        Store._saveSyncBase();
         console.log('Firebase real-time update received');
         
         // รีเฟรช UI
