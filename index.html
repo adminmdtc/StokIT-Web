@@ -32,6 +32,17 @@
 </head>
 <body>
 
+<!-- GitHub Pages SPA Redirect Handler -->
+<script>
+  (function() {
+    var redirect = sessionStorage.redirect;
+    delete sessionStorage.redirect;
+    if (redirect && redirect != location.href) {
+      history.replaceState(null, null, redirect);
+    }
+  })();
+</script>
+
 <!-- ==================== หน้าเข้าสู่ระบบ ==================== -->
 <div id="login-view" class="login-wrap hidden">
   <div class="login-card">
