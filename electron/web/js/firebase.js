@@ -155,14 +155,30 @@ const FirebaseDB = {
           ConflictResolver.autoMerge(conflictResult);
         }
         
-        // ไม่มี conflict → force update ตามเดิม
-        // เก็บ users ท้องถิ่นที่ยังไม่ได้ sync ขึ้น Firebase
-        const localUsersOnly = this._getLocalOnlyUsers(data);
+        // ไม่มี conflict → force update แต่เก็บข้อมูลท้องถิ่นที่ยังไม่ได้ sync
+        const localOnlyData = this._getLocalOnlyData(data);
         Store.db = data;
-        // เพิ่ม users ท้องถิ่นกลับเข้าไป
-        if (localUsersOnly.length > 0) {
+        // เพิ่มข้อมูลท้องถิ่นกลับเข้าไป
+        if (localOnlyData.items.length > 0 || localOnlyData.transactions.length > 0 || localOnlyData.users.length > 0) {
+          if (!Store.db.items) Store.db.items = [];
+          if (!Store.db.transactions) Store.db.transactions = [];
           if (!Store.db.users) Store.db.users = [];
-          localUsersOnly.forEach(u => {
+          
+          localOnlyData.items.forEach(item => {
+            if (!Store.db.items.find(x => x.id === item.id)) {
+              Store.db.items.push(item);
+              console.log('Preserved local-only item:', item.name);
+            }
+          });
+          
+          localOnlyData.transactions.forEach(tx => {
+            if (!Store.db.transactions.find(x => x.id === tx.id)) {
+              Store.db.transactions.push(tx);
+              console.log('Preserved local-only transaction:', tx.no);
+            }
+          });
+          
+          localOnlyData.users.forEach(u => {
             if (!Store.db.users.find(x => x.id === u.id)) {
               Store.db.users.push(u);
               console.log('Preserved local-only user:', u.username);
@@ -186,10 +202,18 @@ const FirebaseDB = {
     }
   },
 
-  /* ค้นหา users ที่มีเฉพาะในเครื่องนี้ (ยังไม่ได้ sync ขึ้น Firebase) */
-  _getLocalOnlyUsers(remoteData) {
+  /* ค้นหาข้อมูลที่มีเฉพาะในเครื่องนี้ (ยังไม่ได้ sync ขึ้น Firebase) */
+  _getLocalOnlyData(remoteData) {
+    const localItems = Store.db.items || [];
+    const localTransactions = Store.db.transactions || [];
     const localUsers = Store.db.users || [];
+    
+    const remoteItems = (remoteData && remoteData.items) || [];
+    const remoteTransactions = (remoteData && remoteData.transactions) || [];
     const remoteUsers = (remoteData && remoteData.users) || [];
+    
+    const remoteItemIds = new Set(remoteItems.map(i => i.id));
+    const remoteTxIds = new Set(remoteTransactions.map(t => t.id));
     const remoteUserIds = new Set(remoteUsers.map(u => u.id));
     
     // คืนค่า users ที่มีเฉพาะใน local

@@ -357,16 +357,33 @@ const FirebaseDB = {
         // ตรวจจับ conflict
         const conflictResult = ConflictResolver.detectConflicts(data);
         
-        // กรณี remote ใหม่กว่า หรือ local ไม่เปลี่ยน → ใช้ remote
+        // กรณี remote ใหม่กว่า หรือ local ไม่เปลี่ยน → ใช้ remote แต่เก็บข้อมูลท้องถิ่น
         if (conflictResult && conflictResult.useRemote) {
           console.log('Remote data is newer, using remote data');
-          // เก็บ users ท้องถิ่นที่ยังไม่ได้ sync ขึ้น Firebase
-          const localUsersOnly = this._getLocalOnlyUsers(data);
+          // เก็บข้อมูลท้องถิ่นที่ยังไม่ได้ sync ขึ้น Firebase
+          const localOnlyData = this._getLocalOnlyData(data);
           Store.db = data;
-          // เพิ่ม users ท้องถิ่นกลับเข้าไป
-          if (localUsersOnly.length > 0) {
+          // เพิ่มข้อมูลท้องถิ่นกลับเข้าไป
+          if (localOnlyData.items.length > 0 || localOnlyData.transactions.length > 0 || localOnlyData.users.length > 0) {
+            if (!Store.db.items) Store.db.items = [];
+            if (!Store.db.transactions) Store.db.transactions = [];
             if (!Store.db.users) Store.db.users = [];
-            localUsersOnly.forEach(u => {
+            
+            localOnlyData.items.forEach(item => {
+              if (!Store.db.items.find(x => x.id === item.id)) {
+                Store.db.items.push(item);
+                console.log('Preserved local-only item:', item.name);
+              }
+            });
+            
+            localOnlyData.transactions.forEach(tx => {
+              if (!Store.db.transactions.find(x => x.id === tx.id)) {
+                Store.db.transactions.push(tx);
+                console.log('Preserved local-only transaction:', tx.no);
+              }
+            });
+            
+            localOnlyData.users.forEach(u => {
               if (!Store.db.users.find(x => x.id === u.id)) {
                 Store.db.users.push(u);
                 console.log('Preserved local-only user:', u.username);
@@ -402,14 +419,30 @@ const FirebaseDB = {
           ConflictResolver.autoMerge(conflictResult);
         }
         
-        // ไม่มี conflict → force update ตามเดิม
-        // เก็บ users ท้องถิ่นที่ยังไม่ได้ sync ขึ้น Firebase
-        const localUsersOnly = this._getLocalOnlyUsers(data);
+        // ไม่มี conflict → force update แต่เก็บข้อมูลท้องถิ่นที่ยังไม่ได้ sync
+        const localOnlyData = this._getLocalOnlyData(data);
         Store.db = data;
-        // เพิ่ม users ท้องถิ่นกลับเข้าไป
-        if (localUsersOnly.length > 0) {
+        // เพิ่มข้อมูลท้องถิ่นกลับเข้าไป
+        if (localOnlyData.items.length > 0 || localOnlyData.transactions.length > 0 || localOnlyData.users.length > 0) {
+          if (!Store.db.items) Store.db.items = [];
+          if (!Store.db.transactions) Store.db.transactions = [];
           if (!Store.db.users) Store.db.users = [];
-          localUsersOnly.forEach(u => {
+          
+          localOnlyData.items.forEach(item => {
+            if (!Store.db.items.find(x => x.id === item.id)) {
+              Store.db.items.push(item);
+              console.log('Preserved local-only item:', item.name);
+            }
+          });
+          
+          localOnlyData.transactions.forEach(tx => {
+            if (!Store.db.transactions.find(x => x.id === tx.id)) {
+              Store.db.transactions.push(tx);
+              console.log('Preserved local-only transaction:', tx.no);
+            }
+          });
+          
+          localOnlyData.users.forEach(u => {
             if (!Store.db.users.find(x => x.id === u.id)) {
               Store.db.users.push(u);
               console.log('Preserved local-only user:', u.username);
@@ -433,14 +466,25 @@ const FirebaseDB = {
     }
   },
 
-  /* ค้นหา users ที่มีเฉพาะในเครื่องนี้ (ยังไม่ได้ sync ขึ้น Firebase) */
-  _getLocalOnlyUsers(remoteData) {
+  /* ค้นหาข้อมูลที่มีเฉพาะในเครื่องนี้ (ยังไม่ได้ sync ขึ้น Firebase) */
+  _getLocalOnlyData(remoteData) {
+    const localItems = Store.db.items || [];
+    const localTransactions = Store.db.transactions || [];
     const localUsers = Store.db.users || [];
+    
+    const remoteItems = (remoteData && remoteData.items) || [];
+    const remoteTransactions = (remoteData && remoteData.transactions) || [];
     const remoteUsers = (remoteData && remoteData.users) || [];
+    
+    const remoteItemIds = new Set(remoteItems.map(i => i.id));
+    const remoteTxIds = new Set(remoteTransactions.map(t => t.id));
     const remoteUserIds = new Set(remoteUsers.map(u => u.id));
     
-    // คืนค่า users ที่มีเฉพาะใน local
-    return localUsers.filter(u => !remoteUserIds.has(u.id));
+    return {
+      items: localItems.filter(i => !remoteItemIds.has(i.id)),
+      transactions: localTransactions.filter(t => !remoteTxIds.has(t.id)),
+      users: localUsers.filter(u => !remoteUserIds.has(u.id)),
+    };
   },
 
   /* ส่งข้อมูลทั้งหมดขึ้น Firebase */
@@ -453,21 +497,10 @@ const FirebaseDB = {
     this._justSyncedTime = Date.now();
     this._emitStatus('syncing', 'กำลังบันทึก...');
     try {
-      // ใช้ transaction เพื่อป้องกัน conflict
-      const ref = this.db.ref('itstock');
-      await ref.transaction((currentData) => {
-        // ใช้ข้อมูลใหม่สุด (timestamp เทียบ)
-        const localTimestamp = Store.db._lastSync || 0;
-        const remoteTimestamp = (currentData && currentData._lastSync) || 0;
-        
-        if (localTimestamp >= remoteTimestamp) {
-          // ข้อมูล local ใหม่กว่า → ส่งขึ้น
-          return Store.db;
-        } else {
-          // ข้อมูล remote ใหม่กว่า → ใช้ remote
-          return currentData;
-        }
-      });
+      // ส่งข้อมูล local ขึ้น Firebase เสมอ
+      // ไม่ใช้ timestamp เปรียบเทียบ เพราะ _lastSync ถูก overwrite ตอน syncFromFirebase
+      // ใช้ set() แทน transaction เพื่อให้ข้อมูล local ขึ้น Firebase แน่นอน
+      await this.db.ref('itstock').set(Store.db);
       
       Store._saveSyncBase();
       console.log('Synced to Firebase successfully');
