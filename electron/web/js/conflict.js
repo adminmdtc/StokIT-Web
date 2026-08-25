@@ -129,6 +129,24 @@ const ConflictResolver = {
       }
     });
 
+    /* ตรวจ users ที่ Remote เพิ่มใหม่ หรือ Local เพิ่มใหม่ */
+    const remoteUserIds = new Set((remoteData.users || []).map(u => u.id));
+    const localUserIds = new Set((Store.db.users || []).map(u => u.id));
+    
+    /* Remote มี user ใหม่ที่ Local ไม่มี → เพิ่มลง local */
+    (remoteData.users || []).forEach(user => {
+      if (!localUserIds.has(user.id)) {
+        autoMergeable.push({ type: 'user', id: user.id, action: 'remote_add', remote: user });
+      }
+    });
+    
+    /* Local มี user ใหม่ที่ Remote ไม่มี → ต้องเพิ่มขึ้น remote (จะถูก syncToFirebase ครั้งถัดไป) */
+    (Store.db.users || []).forEach(user => {
+      if (!remoteUserIds.has(user.id)) {
+        autoMergeable.push({ type: 'user', id: user.id, action: 'local_only', local: user });
+      }
+    });
+
     return {
       hasConflict: conflicts.length > 0,
       canAutoMerge: conflicts.length === 0,
@@ -178,6 +196,21 @@ const ConflictResolver = {
         /* Remote เพิ่มใหม่ → เพิ่มลง local */
         const exists = Store.getItem(entry.id);
         if (!exists) Store.db.items.push(entry.remote);
+      }
+      
+      /* จัดการ users */
+      if (entry.type === 'user' && entry.action === 'remote_add') {
+        /* Remote มี user ใหม่ → เพิ่มลง local */
+        const exists = (Store.db.users || []).find(u => u.id === entry.id);
+        if (!exists) {
+          if (!Store.db.users) Store.db.users = [];
+          Store.db.users.push(entry.remote);
+          console.log('Auto-merged new user from remote:', entry.remote.username);
+        }
+      }
+      if (entry.type === 'user' && entry.action === 'local_only') {
+        /* Local มี user ใหม่ → ไม่ต้องทำอะไร (จะถูก syncToFirebase ครั้งถัดไป) */
+        console.log('Local-only user will be synced to Firebase:', entry.local.username);
       }
     });
 

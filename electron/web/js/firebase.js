@@ -156,10 +156,22 @@ const FirebaseDB = {
         }
         
         // ไม่มี conflict → force update ตามเดิม
+        // เก็บ users ท้องถิ่นที่ยังไม่ได้ sync ขึ้น Firebase
+        const localUsersOnly = this._getLocalOnlyUsers(data);
         Store.db = data;
-        localStorage.setItem(DB_KEY, JSON.stringify(data));
+        // เพิ่ม users ท้องถิ่นกลับเข้าไป
+        if (localUsersOnly.length > 0) {
+          if (!Store.db.users) Store.db.users = [];
+          localUsersOnly.forEach(u => {
+            if (!Store.db.users.find(x => x.id === u.id)) {
+              Store.db.users.push(u);
+              console.log('Preserved local-only user:', u.username);
+            }
+          });
+        }
+        localStorage.setItem(DB_KEY, JSON.stringify(Store.db));
         Store._saveSyncBase();
-        console.log('Synced from Firebase:', Object.keys(data));
+        console.log('Synced from Firebase:', Object.keys(Store.db));
         this._emitStatus('connected', 'เชื่อมต่อแล้ว');
         return true;
       }
@@ -172,6 +184,16 @@ const FirebaseDB = {
     } finally {
       this._syncing = false;
     }
+  },
+
+  /* ค้นหา users ที่มีเฉพาะในเครื่องนี้ (ยังไม่ได้ sync ขึ้น Firebase) */
+  _getLocalOnlyUsers(remoteData) {
+    const localUsers = Store.db.users || [];
+    const remoteUsers = (remoteData && remoteData.users) || [];
+    const remoteUserIds = new Set(remoteUsers.map(u => u.id));
+    
+    // คืนค่า users ที่มีเฉพาะใน local
+    return localUsers.filter(u => !remoteUserIds.has(u.id));
   },
 
   /* ส่งข้อมูลทั้งหมดขึ้น Firebase */
