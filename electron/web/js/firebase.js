@@ -334,11 +334,15 @@ function isFirebaseEnabled() {
 async function autoSyncToFirebase() {
   if (isFirebaseEnabled()) {
     try {
-      await FirebaseDB.syncToFirebase();
+      const result = await FirebaseDB.syncToFirebase();
+      return result;
     } catch (e) {
       console.error('Auto sync to Firebase failed:', e);
+      return false;
     }
   }
+  console.log('Firebase not enabled - skipping sync');
+  return false;
 }
 
 /* ซิงค์ข้อมูลจาก Firebase (เรียกเมื่อเริ่มต้น) */

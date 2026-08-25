@@ -218,9 +218,20 @@ const Store = {
     // Auto sync to Firebase (await to ensure sync)
     if (typeof autoSyncToFirebase === 'function') {
       try {
-        await autoSyncToFirebase();
+        const result = await autoSyncToFirebase();
+        if (result === false) {
+          console.warn('Firebase sync returned false - check if Firebase is connected');
+          // แสดง notification ถ้า sync ไม่สำเร็จ
+          if (typeof toast === 'function') {
+            toast('ไม่สามารถซิงค์ข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อ Firebase', 'error');
+          }
+        }
       } catch (e) {
         console.error('Firebase sync error in save:', e);
+        // แสดง notification ถ้า sync ล้มเหลว
+        if (typeof toast === 'function') {
+          toast('ซิงค์ข้อมูลล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), 'error');
+        }
       }
     }
   },
