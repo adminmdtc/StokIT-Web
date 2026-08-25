@@ -58,10 +58,11 @@ function createWindow() {
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(menuTemplate));
 
-  // ตรวจสอบอัพเดทหลังเปิดแอป (รอ 3 วินาที)
-  setTimeout(() => {
-    if (mainWindow) checkUpdate();
-  }, 3000);
+  // Auto-update check disabled by default — user can check manually from Help menu
+  // To re-enable, uncomment the lines below:
+  // setTimeout(() => {
+  //   if (mainWindow) checkUpdate();
+  // }, 3000);
 }
 
 // === Auto Update ===

@@ -102,11 +102,9 @@ function checkForUpdates(mainWin) {
 
   autoUpdater.checkForUpdates().catch((err) => {
     isChecking = false;
-    console.error('Check for updates failed:', err);
-    sendToWindow('update-status', {
-      status: 'error',
-      message: 'ไม่สามารถตรวจสอบได้: ' + (err.message || 'ไม่ทราบสาเหตุ'),
-    });
+    console.log('Check for updates failed (this is normal if offline):', err.message || err);
+    // Close silently — don't bother the user with update errors
+    closeUpdateWindow();
   });
 }
 
@@ -178,15 +176,9 @@ autoUpdater.on('update-downloaded', (info) => {
 autoUpdater.on('error', (err) => {
   isChecking = false;
   console.error('Auto-updater error:', err);
-  // แสดง error เฉพาะที่ไม่ใช่ ENOENT (ไฟล์ yml ไม่เจอ)
-  if (err.message && err.message.includes('ENOENT')) {
-    console.log('app-update.yml not found, auto-update will use fallback config');
-    return;
-  }
-  sendToWindow('update-status', {
-    status: 'error',
-    message: 'เกิดข้อผิดพลาด: ' + (err.message || 'ไม่ทราบสาเหตุ'),
-  });
+  // ปิด error ทั้งหมด — ไม่แสดงหน้าต่าง error ให้ user
+  // เพราะ auto-update เป็น optional feature
+  closeUpdateWindow();
 });
 
 // === IPC Handlers ===
