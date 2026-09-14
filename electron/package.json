@@ -1,6 +1,6 @@
 {
   "name": "it-stock",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "ระบบบริหารจัดการวัสดุและอุปกรณ์ กลุ่มงานเทคโนโลยีสารสนเทศ",
   "main": "main.js",
   "scripts": {
