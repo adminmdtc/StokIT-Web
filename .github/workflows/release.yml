@@ -1,0 +1,46 @@
+name: Build & Release (Windows)
+
+# สร้าง installer และเผยแพร่ GitHub Release อัตโนมัติเมื่อ push tag v*
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}   # กดรันเองจากหน้า Actions ได้
+
+permissions:
+  contents: write   # จำเป็นสำหรับสร้าง Release และอัปโหลดไฟล์
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: electron
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: electron/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Windows installers
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Show build output
+        run: dir ../dist
+
+      # electron-builder เองจะสร้าง/อัปเดต Release ตาม tag และอัปโหลด
+      # .exe, .blockmap และ latest.yml ให้อัตโนมัติเมื่อมี GH_TOKEN
+      - name: Publish to GitHub Releases
+        run: npx electron-builder --win --x64 --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
