@@ -137,8 +137,8 @@ function exportTxDoc(txId) {
     <table class="doc-info">
       <tr><td class="doc-info-label">${partyLabel}</td><td><strong>${esc(tx.party)}</strong></td></tr>
       ${isRcv && tx.receiver ? `<tr><td class="doc-info-label">ผู้บันทึกข้อมูลรับเข้า</td><td><strong>${esc(tx.receiver)}</strong></td></tr>` : ''}
-      ${!isRcv && tx.receiver ? `<tr><td class="doc-info-label">ผู้เบิก</td><td><strong>${esc(tx.receiver)}</strong></td></tr>` : ''}
-      ${!isRcv && tx.partyRx ? `<tr><td class="doc-info-label">ผู้รับ</td><td><strong>${esc(tx.partyRx)}</strong></td></tr>` : ''}
+      ${!isRcv ? `<tr><td class="doc-info-label">ผู้เบิก</td><td><strong>${esc(tx.receiver || '—')}</strong></td></tr>` : ''}
+      ${!isRcv ? `<tr><td class="doc-info-label">ผู้รับ</td><td><strong>${esc(tx.partyRx || '—')}</strong></td></tr>` : ''}
       <tr><td class="doc-info-label">วันที่</td><td>${fmtDate(tx.date)}</td></tr>
       <tr><td class="doc-info-label">ผู้บันทึก</td><td>${esc(tx.byName)}</td></tr>
     </table>

@@ -2,6 +2,15 @@
 
 const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
+let db;
+try {
+  db = require('./database');
+  db.open();
+  console.log('SQLite database opened:', db.DB_PATH);
+} catch (e) {
+  console.warn('SQLite not available, using localStorage fallback:', e.message);
+  db = null;
+}
 
 let mainWindow;
 let updater;
@@ -13,7 +22,7 @@ function createWindow() {
     minWidth: 1024,
     minHeight: 600,
     title: 'IT Stock — ระบบบริหารจัดการวัสดุ',
-    icon: path.join(__dirname, '..', 'assets', 'icon.png'),
+
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -23,8 +32,7 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'web', 'index.html'));
 
-  // Open DevTools for debugging
-  mainWindow.webContents.openDevTools({ mode: 'detach' });
+  // mainWindow.webContents.openDevTools({ mode: 'detach' });
 
   mainWindow.on('closed', () => {
     mainWindow = null;
@@ -74,6 +82,36 @@ function checkUpdate() {
   updater.checkForUpdates(mainWindow);
 }
 
+// === Database IPC Handlers ===
+function withDb(fn, fallback) {
+  if (!db) return fallback !== undefined ? fallback : { ok: false, error: 'SQLite not available' };
+  return fn();
+}
+ipcMain.handle('db:getAll', (_e, table) => withDb(() => db.getAll(table), []));
+ipcMain.handle('db:getById', (_e, table, id) => withDb(() => db.getById(table, id), null));
+ipcMain.handle('db:getMeta', (_e, key) => withDb(() => db.getMeta(key), null));
+ipcMain.handle('db:upsert', (_e, table, row) => withDb(() => { db.upsert(table, row); return { ok: true }; }));
+ipcMain.handle('db:insert', (_e, table, row) => withDb(() => { db.insert(table, row); return { ok: true }; }));
+ipcMain.handle('db:update', (_e, table, id, row) => withDb(() => { db.update(table, id, row); return { ok: true }; }));
+ipcMain.handle('db:remove', (_e, table, id) => withDb(() => { db.remove(table, id); return { ok: true }; }));
+ipcMain.handle('db:clearTable', (_e, table) => withDb(() => { db.clearTable(table); return { ok: true }; }));
+ipcMain.handle('db:setMeta', (_e, key, value) => withDb(() => { db.setMeta(key, value); return { ok: true }; }));
+ipcMain.handle('db:saveAll', (_e, data) => withDb(() => {
+  const { items = [], transactions = [], users = [], reorderItems = [] } = data;
+  db.clearTable('items'); items.forEach(r => db.upsert('items', r));
+  db.clearTable('transactions'); transactions.forEach(r => db.upsert('transactions', r));
+  db.clearTable('users'); users.forEach(r => db.upsert('users', r));
+  db.clearTable('reorder_items'); reorderItems.forEach(r => db.upsert('reorder_items', r));
+  return { ok: true };
+}));
+ipcMain.handle('db:loadAll', () => withDb(() => ({
+  items: db.getAll('items'),
+  transactions: db.getAll('transactions'),
+  users: db.getAll('users'),
+  reorderItems: db.getAll('reorder_items'),
+}), { items: [], transactions: [], users: [], reorderItems: [] }));
+ipcMain.handle('db:path', () => withDb(() => db.DB_PATH, ''));
+
 // IPC handlers สำหรับ update window
 ipcMain.on('start-download', () => {
   if (updater) {
@@ -106,10 +144,17 @@ function showAbout() {
 
 // === App Lifecycle ===
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+});
 
 app.on('window-all-closed', () => {
+  try { if (db) db.close(); } catch (e) { /* ignore */ }
   if (process.platform !== 'darwin') app.quit();
+});
+
+app.on('before-quit', () => {
+  try { if (db) db.close(); } catch (e) { /* ignore */ }
 });
 
 app.on('activate', () => {

@@ -73,6 +73,23 @@ function buildSeed() {
     { id: 'i47', code: 'A0076034',      name: 'Converter Adapter micro HDMI to VGA',          category: 'อุปกรณ์ต่อพ่วง',   unit: 'อัน', minStock: 1,  location: 'ตู้ B เลขที่ 10', mission: 'm4', group: 'g12', note: '', trackSerial: false },
     { id: 'i48', code: '240033407739',  name: 'ซีลิโคน CPU',                                 category: 'ทำความสะอาด',      unit: 'หลอด', minStock: 0,  location: 'ตู้ C เลขที่ 3',  mission: 'm4', group: 'g12', note: '', trackSerial: false },
     { id: 'i49', code: '6942937501810', name: 'Print HEAD Brother',                           category: 'หมึกพิมพ์',        unit: 'กล่อง', minStock: 1,  location: 'ตู้ A เลขที่ 6',  mission: 'm1', group: 'g1', note: '', trackSerial: false },
+    /* อะไหล่วัสดุคอมพิวเตอร์ */
+    { id: 'i50', code: 'RAM-DDR4-8G',    name: 'แรม DDR4 8GB 2666MHz',                        category: 'อะไหล่วัสดุคอมพิวเตอร์', unit: 'ชิ้น', minStock: 2, location: 'ตู้ B เลขที่ 1', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i51', code: 'HDD-1TB',        name: 'ฮาร์ดดิส Western Digital 1TB',                 category: 'อะไหล่วัสดุคอมพิวเตอร์', unit: 'ชิ้น', minStock: 1, location: 'ตู้ B เลขที่ 2', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i52', code: 'SSD-256G',       name: 'SSD 256GB SATA 2.5"',                         category: 'อะไหล่วัสดุคอมพิวเตอร์', unit: 'ชิ้น', minStock: 2, location: 'ตู้ B เลขที่ 2', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i53', code: 'PSU-500W',       name: 'พาวเวอร์ซัพพลาย 500W',                       category: 'อะไหล่วัสดุคอมพิวเตอร์', unit: 'ชิ้น', minStock: 1, location: 'ตู้ B เลขที่ 3', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    /* เครื่องมือช่าง */
+    { id: 'i54', code: 'SCREW-KIT',      name: 'ชุดไขควง 6 แกน',                              category: 'เครื่องมือช่าง',       unit: 'ชุด', minStock: 1, location: 'ตู้ D เลขที่ 1', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i55', code: 'PLIER-SET',      name: 'ชุดคีม 3 ขนาด',                               category: 'เครื่องมือช่าง',       unit: 'ชุด', minStock: 1, location: 'ตู้ D เลขที่ 2', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i56', code: 'TAPE-INSUL',     name: 'เทปพันสายไฟ 19mm',                            category: 'เครื่องมือช่าง',       unit: 'ม้วน', minStock: 5, location: 'ตู้ D เลขที่ 3', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    /* อะไหล่วัสดุปริ้นเตอร์ */
+    { id: 'i57', code: 'DRUM-PANTUM',    name: 'ดรั้ม Panther DR-2200',                       category: 'อะไหล่วัสดุปริ้นเตอร์', unit: 'ชิ้น', minStock: 1, location: 'ตู้ A เลขที่ 7', mission: 'm1', group: 'g1', note: '', trackSerial: false },
+    { id: 'i58', code: 'FUSER-HP',       name: 'ชุดความร้อน Fuser Unit HP M402',              category: 'อะไหล่วัสดุปริ้นเตอร์', unit: 'ชิ้น', minStock: 1, location: 'ตู้ A เลขที่ 8', mission: 'm1', group: 'g1', note: '', trackSerial: false },
+    { id: 'i59', code: 'ROLLER-EPSON',   name: 'ยางม้วนกระดาษ Epson L3110',                  category: 'อะไหล่วัสดุปริ้นเตอร์', unit: 'ชิ้น', minStock: 2, location: 'ตู้ A เลขที่ 9', mission: 'm1', group: 'g1', note: '', trackSerial: false },
+    /* วัสดุอุปกรณ์บำรุงต่างๆ */
+    { id: 'i60', code: 'CLEAN-CART',     name: 'ชุดทำความสะอาดหัวพิมพ์',                     category: 'วัสดุอุปกรณ์บำรุงต่างๆ', unit: 'ชุด', minStock: 2, location: 'ตู้ A เลขที่ 10', mission: 'm1', group: 'g1', note: '', trackSerial: false },
+    { id: 'i61', code: 'SPRAY-AIR',     name: 'สเปรย์เป่าฝุ่น 400ml',                         category: 'วัสดุอุปกรณ์บำรุงต่างๆ', unit: 'กระป๋อง', minStock: 3, location: 'ตู้ C เลขที่ 4', mission: 'm4', group: 'g12', note: '', trackSerial: false },
+    { id: 'i62', code: 'THERMAL-PASTE', name: 'ซีลิโคนระบายความร้อน Arctic MX-4',             category: 'วัสดุอุปกรณ์บำรุงต่างๆ', unit: 'หลอด', minStock: 2, location: 'ตู้ C เลขที่ 5', mission: 'm4', group: 'g12', note: '', trackSerial: false },
   ];
 
   /* สร้างรายการรับเข้าเพื่อตั้งค่าคงเหลือเริ่มต้นตาม Excel */
@@ -83,6 +100,8 @@ function buildSeed() {
     'i25': 4, 'i26': 4, 'i27': 4, 'i28': 3, 'i29': 2, 'i30': 2, 'i31': 2, 'i32': 2,
     'i33': 2, 'i34': 1, 'i35': 1, 'i36': 1, 'i37': 1, 'i38': 1, 'i39': 1, 'i40': 1,
     'i41': 1, 'i42': 1, 'i43': 1, 'i44': 1, 'i45': 0, 'i46': 0, 'i47': 0, 'i48': 0, 'i49': 0,
+    'i50': 5, 'i51': 3, 'i52': 4, 'i53': 2, 'i54': 3, 'i55': 2, 'i56': 10, 'i57': 3,
+    'i58': 1, 'i59': 4, 'i60': 5, 'i61': 8, 'i62': 4,
   };
 
   const transactions = [];
@@ -106,7 +125,7 @@ function buildSeed() {
     { id: 'u2', username: 'user',  password: hashStr('14197'),  name: 'เจ้าหน้าที่พัสดุ', role: 'user' },
   ];
 
-  return { items, transactions, users, seq: { item: 49, receive: rcvNo - 1, issue: 0 } };
+  return { items, transactions, users, reorderItems: [], seq: { item: 49, receive: rcvNo - 1, issue: 0 } };
 }
 
 /* ---------- Store API ---------- */
@@ -122,12 +141,32 @@ const Store = {
     return obj;
   },
 
-  load() {
+  _isSQLite() { return typeof window !== 'undefined' && window.electronDB && window.electronDB.isElectron; },
+
+  async load() {
+    /* ---- Electron SQLite ---- */
+    if (this._isSQLite()) {
+      try {
+        const data = await window.electronDB.loadAll();
+        if (data && data.items && data.items.length) {
+          this.db = {
+            items: data.items,
+            transactions: (data.transactions || []).map(t => ({ ...t, items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items })),
+            users: data.users || [],
+            reorderItems: data.reorderItems || [],
+            seq: { item: data.items.length, tx: (data.transactions || []).length, user: (data.users || []).length },
+          };
+          console.log('SQLite: loaded', data.items.length, 'items');
+          return this.db;
+        }
+      } catch (e) { console.error('SQLite load error:', e); }
+    }
+    /* ---- localStorage fallback ---- */
     try {
       const raw = localStorage.getItem(DB_KEY);
       if (raw) {
         const d = JSON.parse(raw);
-        if (d && Array.isArray(d.items)) { this.db = d; return this.db; }
+        if (d && Array.isArray(d.items)) { this.db = d; /* sync to SQLite */ if (this._isSQLite()) this.save(); return this.db; }
       }
     } catch (e) { /* ignore */ }
     this.db = buildSeed();
@@ -193,40 +232,28 @@ const Store = {
     return diffs;
   },
 
-  /* โหลดข้อมูลจาก Firebase (ถ้ามี) */
-  async loadFromFirebase() {
-    if (typeof FirebaseDB !== 'undefined' && FirebaseDB.connected) {
-      try {
-        const success = await FirebaseDB.syncFromFirebase();
-        if (success) {
-          console.log('Loaded data from Firebase');
-          return true;
-        }
-      } catch (e) {
-        console.error('Load from Firebase error:', e);
-      }
-    }
-    return false;
-  },
+
   async save() {
-    localStorage.setItem(DB_KEY, JSON.stringify(this.db));
-    // Auto sync to Firebase (await to ensure sync)
-    if (typeof autoSyncToFirebase === 'function') {
+    // อัพเดท timestamp สำหรับ sync
+    this.db._lastSync = Date.now();
+    this.db._lastUpdate = new Date().toISOString();
+    
+    /* ---- Electron SQLite ---- */
+    if (this._isSQLite()) {
       try {
-        const result = await autoSyncToFirebase();
-        if (result === false) {
-          console.warn('Firebase sync returned false - check if Firebase is connected');
-          if (typeof toast === 'function') {
-            toast('ไม่สามารถซิงค์ข้อมูลได้ กรุณาตรวจสอบการเชื่อมต่อ Firebase', 'error');
-          }
-        }
-      } catch (e) {
-        console.error('Firebase sync error in save:', e);
-        if (typeof toast === 'function') {
-          toast('ซิงค์ข้อมูลล้มเหลว: ' + (e.message || 'ไม่ทราบสาเหตุ'), 'error');
-        }
-      }
+        await window.electronDB.saveAll({
+          items: this.db.items || [],
+          transactions: (this.db.transactions || []).map(t => ({ ...t, items: JSON.stringify(t.items || []) })),
+          users: this.db.users || [],
+          reorderItems: this.db.reorderItems || [],
+        });
+      } catch (e) { console.error('SQLite save error:', e); }
     }
+    
+    /* ---- localStorage fallback ---- */
+    localStorage.setItem(DB_KEY, JSON.stringify(this.db));
+    
+
   },
   reset() {
     localStorage.removeItem(DB_KEY);
@@ -248,14 +275,42 @@ const Store = {
     return `${pre}-${new Date().getFullYear()}-${String(n).padStart(4, '0')}`;
   },
 
+  /* ตั้ง qty โดยตรง — ลบ receive เดิมของ item แล้วสร้างใหม่ (สำหรับ Admin แก้ไขจำนวน) */
+  setQtyDirect(itemId, newQty) {
+    const item = this.getItem(itemId);
+    if (!item) return;
+    /* ลบ transaction ที่เกี่ยวข้องกับ item นี้ทั้งหมด */
+    this.db.transactions = this.db.transactions.filter(tx => {
+      const hasItem = tx.items.some(l => l.itemId === itemId);
+      if (hasItem) return false;
+      return true;
+    });
+    /* สร้าง receive transaction ใหม่ด้วยจำนวนที่ถูกต้อง */
+    if (newQty > 0) {
+      this.db.transactions.unshift({
+        id: uid('tx'), type: 'receive',
+        no: this.nextTxNo('receive'),
+        date: todayStr(),
+        party: 'แก้ไขจำนวนตรง',
+        receiver: '', partyRx: '',
+        by: 'admin', byName: 'Admin001',
+        note: `แก้ไขจำนวนตรงเป็น ${newQty}`,
+        mission: item.mission || '', group: item.group || '', workUnit: item.workUnit || '',
+        items: [{ itemId, name: item.name, qty: newQty, serials: [] }],
+      });
+    }
+    this.save();
+    this._mysqlAdd('tx', this.db.transactions[0]);
+  },
+
   addItem(data) {
     const defaults = { id: uid('it'), code: this.nextItemCode(), category: '', unit: '', minStock: 0, location: '', note: '', mission: '', group: '', workUnit: '', image: '' };
     const it = Object.assign(defaults, data);
-    /* ถ้าไม่มี code ให้สร้างอัตโนมัติ */
     if (!it.code || it.code === '') it.code = this.nextItemCode();
     this._stamp(it);
     this.db.items.push(it);
     this.save();
+    this._mysqlAdd('item', it);
     return it;
   },
   updateItem(id, data) {
@@ -264,12 +319,21 @@ const Store = {
     Object.assign(it, data);
     this._stamp(it);
     this.save();
+    this._mysqlUpdate('item', id, data);
     return it;
   },
-  deleteItem(id) { this.db.items = this.db.items.filter(i => i.id !== id); this.save(); },
+  deleteItem(id) { this.db.items = this.db.items.filter(i => i.id !== id); this.save(); this._mysqlDelete('item', id); },
 
-  addTransaction(tx) { this._stamp(tx); this.db.transactions.unshift(tx); this.save(); return tx; },
-  deleteTransaction(id) { this.db.transactions = this.db.transactions.filter(t => t.id !== id); this.save(); },
+  addTransaction(tx) { this._stamp(tx); this.db.transactions.unshift(tx); this.save(); this._mysqlAdd('tx', tx); return tx; },
+  deleteTransaction(id) { this.db.transactions = this.db.transactions.filter(t => t.id !== id); this.save(); this._mysqlDelete('tx', id); },
+
+  /* ลบเฉพาะรายการแก้ไขสต็อก (party = 'แก้ไขสต็อก' หรือ 'แก้ไขจำนวนตรง') */
+  deleteStockEditTransactions() {
+    const count = this.db.transactions.filter(t => t.party === 'แก้ไขสต็อก' || t.party === 'แก้ไขจำนวนตรง').length;
+    this.db.transactions = this.db.transactions.filter(t => t.party !== 'แก้ไขสต็อก' && t.party !== 'แก้ไขจำนวนตรง');
+    this.save();
+    return count;
+  },
 
   addUser(data) {
     const u = Object.assign({ id: uid('u'), role: 'user' }, data);
@@ -277,6 +341,7 @@ const Store = {
     this._stamp(u);
     this.db.users.push(u);
     this.save();
+    this._mysqlAdd('user', u);
     return u;
   },
   updateUser(id, data) {
@@ -286,10 +351,63 @@ const Store = {
     Object.assign(u, data);
     this._stamp(u);
     this.save();
+    this._mysqlUpdate('user', id, data);
     return u;
   },
-  deleteUser(id) { this.db.users = this.db.users.filter(x => x.id !== id); this.save(); },
+  deleteUser(id) { this.db.users = this.db.users.filter(x => x.id !== id); this.save(); this._mysqlDelete('user', id); },
   findUser(username) { return this.db.users.find(u => u.username.toLowerCase() === String(username).toLowerCase()); },
+
+  /* --- MySQL Mode --- */
+  _isMySQL() { return typeof MySQLBackend !== 'undefined' && MySQLBackend.enabled; },
+  async syncFromMySQL() {
+    if (!this._isMySQL()) return false;
+    try {
+      const data = await MySQLBackend.syncAll();
+      /* sync เฉพาะตารางที่มีข้อมูล — ป้องกันเขียนทับด้วย array ว่าง */
+      if (data.items && data.items.length) this.db.items = data.items;
+      if (data.transactions && data.transactions.length) this.db.transactions = data.transactions.map(t => ({ ...t, items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items }));
+      if (data.users && data.users.length) this.db.users = data.users;
+      if (data.reorderItems && data.reorderItems.length) this.db.reorderItems = data.reorderItems;
+      this.save();
+      return true;
+    } catch (e) { console.error('MySQL sync error:', e); return false; }
+  },
+  async syncToMySQL() {
+    if (!this._isMySQL()) return false;
+    try {
+      let count = 0;
+      for (const item of this.db.items) { await MySQLBackend.addItem(item); count++; }
+      for (const tx of this.db.transactions) { await MySQLBackend.addTransaction(tx); count++; }
+      for (const u of this.db.users) { await MySQLBackend.addUser(u); count++; }
+      for (const r of (this.db.reorderItems || [])) { await MySQLBackend.addReorder(r); count++; }
+      return count;
+    } catch (e) { console.error('MySQL push error:', e); return false; }
+  },
+  async _mysqlAdd(type, data) {
+    if (!this._isMySQL()) return;
+    try {
+      if (type === 'item') await MySQLBackend.addItem(data);
+      else if (type === 'tx') await MySQLBackend.addTransaction(data);
+      else if (type === 'user') await MySQLBackend.addUser(data);
+      else if (type === 'reorder') await MySQLBackend.addReorder(data);
+    } catch (e) { console.error('MySQL add error:', e); }
+  },
+  async _mysqlUpdate(type, id, data) {
+    if (!this._isMySQL()) return;
+    try {
+      if (type === 'item') await MySQLBackend.updateItem(id, data);
+      else if (type === 'user') await MySQLBackend.updateUser(id, data);
+    } catch (e) { console.error('MySQL update error:', e); }
+  },
+  async _mysqlDelete(type, id) {
+    if (!this._isMySQL()) return;
+    try {
+      if (type === 'item') await MySQLBackend.deleteItem(id);
+      else if (type === 'tx') await MySQLBackend.deleteTransaction(id);
+      else if (type === 'user') await MySQLBackend.deleteUser(id);
+      else if (type === 'reorder') await MySQLBackend.deleteReorder(id);
+    } catch (e) { console.error('MySQL delete error:', e); }
+  },
 
   /* แผนที่ Serial: itemId -> { serial: { receive?, issue? } }
      หมายเหตุ: เอกสารใหม่ถูกแทรกไว้ตำแหน่งแรกของอาร์เรย์ (เรียงย้อนเวลา)
@@ -354,7 +472,8 @@ const Store = {
   },
 
   categories() {
-    const set = new Set();
+    const defaults = ['หมึกพิมพ์', 'อะไหล่วัสดุคอมพิวเตอร์', 'เครื่องมือช่าง', 'อะไหล่วัสดุปริ้นเตอร์', 'วัสดุอุปกรณ์บำรุงต่างๆ', 'อุปกรณ์ต่อพ่วง', 'อุปกรณ์ไฟฟ้า', 'สายไฟฟ้า', 'อุปกรณ์เก็บข้อมูล', 'ทำความสะอาด'];
+    const set = new Set(defaults);
     this.db.items.forEach(i => { if (i.category) set.add(i.category); });
     return [...set].sort((a, b) => a.localeCompare(b, 'th-TH', { sensitivity: 'base' }));
   },
@@ -363,6 +482,24 @@ const Store = {
     this.db.items.forEach(i => { if (i.group) set.add(i.group); });
     return [...set];
   },
+
+  /* --- รายการต้องสั่งเพิ่ม --- */
+  getReorderItems() { return (this.db.reorderItems || []).slice(); },
+  addReorderItem(data) {
+    if (!this.db.reorderItems) this.db.reorderItems = [];
+    const item = Object.assign({ id: uid('ro') }, data);
+    this._stamp(item);
+    this.db.reorderItems.push(item);
+    this.save();
+    this._mysqlAdd('reorder', item);
+    return item;
+  },
+  deleteReorderItem(id) {
+    this.db.reorderItems = (this.db.reorderItems || []).filter(x => x.id !== id);
+    this.save();
+    this._mysqlDelete('reorder', id);
+  },
+  clearReorderItems() { this.db.reorderItems = []; this.save(); if (this._isMySQL()) MySQLBackend.clearReorder().catch(e => console.error(e)); },
 };
 
 /* ---------- ระบบล็อกอิน / เซสชัน ---------- */

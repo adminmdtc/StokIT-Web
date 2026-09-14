@@ -1,0 +1,7 @@
+name = "it-stock-backup"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+[[kv_namespaces]]
+binding = "IT_STOCK_KV"
+id = "07942a5179754ec29b9d8fb8d99d2655"

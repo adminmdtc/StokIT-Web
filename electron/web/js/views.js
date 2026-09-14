@@ -5,6 +5,7 @@
    ============================================================ */
 
 const isAdmin = () => (Auth.current() || {}).role === 'admin';
+const isMainAdmin = () => (Auth.current() || {}).username === 'Admin001';
 
 /* ตัวจัดการเหตุการณ์ส่วนกลาง (เรียกจาก onclick ใน HTML) */
 const App = {};
@@ -37,8 +38,9 @@ function renderDashboard() {
     }
   }
   const qtyIn = (t) => t.items.reduce((a, l) => a + l.qty, 0);
-  const rcvMonth = txs.filter(t => t.type === 'receive' && t.date.slice(0, 7) === mKey).reduce((s, t) => s + qtyIn(t), 0);
-  const issMonth = txs.filter(t => t.type === 'issue' && t.date.slice(0, 7) === mKey).reduce((s, t) => s + qtyIn(t), 0);
+  const isStockEdit = (t) => t.party === 'แก้ไขสต็อก' || t.party === 'แก้ไขจำนวนตรง';
+  const rcvMonth = txs.filter(t => t.type === 'receive' && !isStockEdit(t) && t.date.slice(0, 7) === mKey).reduce((s, t) => s + qtyIn(t), 0);
+  const issMonth = txs.filter(t => t.type === 'issue' && !isStockEdit(t) && t.date.slice(0, 7) === mKey).reduce((s, t) => s + qtyIn(t), 0);
 
   /* แผนภูมิ 6 เดือนล่าสุด */
   const thLabels = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
@@ -51,8 +53,8 @@ function renderDashboard() {
     months.push({
       key,
       label: thLabels[d.getMonth()],
-      rcv: txs.filter(t => t.type === 'receive' && t.date.slice(0, 7) === key).reduce((s, t) => s + qtyIn(t), 0),
-      iss: txs.filter(t => t.type === 'issue' && t.date.slice(0, 7) === key).reduce((s, t) => s + qtyIn(t), 0),
+      rcv: txs.filter(t => t.type === 'receive' && !isStockEdit(t) && t.date.slice(0, 7) === key).reduce((s, t) => s + qtyIn(t), 0),
+      iss: txs.filter(t => t.type === 'issue' && !isStockEdit(t) && t.date.slice(0, 7) === key).reduce((s, t) => s + qtyIn(t), 0),
     });
   }
   const max = Math.max(1, ...months.map(m => Math.max(m.rcv, m.iss)));
@@ -110,38 +112,6 @@ function renderDashboard() {
     <div class="card stat-card"><div class="icon-bubble ib-sky">${icon('receive', 22)}</div><div><div class="stat-num">${fmtQty(rcvMonth)}</div><div class="stat-label">รับเข้าเดือนนี้ (ชิ้น)</div></div></div>
     <div class="card stat-card"><div class="icon-bubble ib-amber">${icon('issue', 22)}</div><div><div class="stat-num">${fmtQty(issMonth)}</div><div class="stat-label">จำหน่ายเดือนนี้ (ชิ้น)</div></div></div>
     <div class="card stat-card"><div class="icon-bubble ib-rose">${icon('alert', 22)}</div><div><div class="stat-num">${lowCount}</div><div class="stat-label">วัสดุใกล้หมด / หมด</div></div></div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><div><h3>สรุปตามกลุ่มงาน/ภารกิจ</h3><p class="muted small">จำนวนวัสดุและยอดคงเหลือแยกตามกลุ่มงาน</p></div></div>
-    <div class="table-wrap">
-      <table class="list"><thead><tr>
-        <th>กลุ่มงาน</th><th>ภารกิจ</th><th class="num">จำนวนรายการ</th><th class="num">จำนวนรวม (ชิ้น)</th><th>วัสดุใกล้หมด</th>
-      </tr></thead><tbody>
-        ${(() => {
-          const groupMap = {};
-          stock.forEach(s => {
-            const g = s.group || '';
-            const gName = g ? getGroupName(g) : 'ไม่ระบุกลุ่มงาน';
-            const mId = s.group ? (MISSIONS.find(m => m.groups.some(x => x.id === s.group)) || {}).id : '';
-            const mName = mId ? getMissionName(mId) : '—';
-            if (!groupMap[g]) groupMap[g] = { name: gName, mission: mName, count: 0, qty: 0, low: [] };
-            groupMap[g].count++;
-            groupMap[g].qty += s.qty;
-            if (s.status !== 'ok') groupMap[g].low.push(s.name);
-          });
-          return Object.values(groupMap).sort((a, b) => b.qty - a.qty).map(d =>
-            `<tr>
-              <td><strong>${esc(d.name)}</strong></td>
-              <td class="muted small">${esc(d.mission)}</td>
-              <td class="num">${d.count}</td>
-              <td class="num">${fmtQty(d.qty)}</td>
-              <td>${d.low.length ? `<span class="badge badge-warning">${d.low.length} รายการ</span>` : '<span class="badge badge-success">ปกติ</span>'}</td>
-            </tr>`
-          ).join('') || `<tr><td colspan="5"><div class="empty">${icon('info', 34)}<span>ยังไม่มีข้อมูลกลุ่มงาน</span></div></td></tr>`;
-        })()}
-      </tbody></table>
-    </div>
   </div>
 
   <div class="dash-grid">
@@ -318,9 +288,7 @@ App.submitIssue = function (ev) {
   let receiver = $('#is-receiver') ? $('#is-receiver').value : '';
   if (receiver === 'other') receiver = $('#is-receiver-custom') ? $('#is-receiver-custom').value.trim() : '';
   else receiver = receiver.trim();
-  let partyRx = $('#is-party-rx') ? $('#is-party-rx').value : '';
-  if (partyRx === 'other') partyRx = $('#is-party-rx-custom') ? $('#is-party-rx-custom').value.trim() : '';
-  else partyRx = partyRx.trim();
+  let partyRx = $('#is-party-rx') ? $('#is-party-rx').value.trim() : '';
   const party = receiver || partyRx || unitVal || groupName || missionName;
   const note = $('#is-note').value.trim();
   if (!missionId) { toast('กรุณาเลือกภารกิจ', 'error'); return; }
@@ -383,10 +351,14 @@ function collectTxLines(type) {
   return lines;
 }
 
+function isStockEditTx(t) { return t.party === 'แก้ไขสต็อก' || t.party === 'แก้ไขจำนวนตรง'; }
+
 function txRowHtml(t) {
   const type = t.type;
   const value = fmtQty(t.items.reduce((s, l) => s + l.qty, 0)) + ' ชิ้น';
-  return `<tr class="clickable" onclick="App.toggleTxDetail('${t.id}')">
+  const isSE = isStockEditTx(t);
+  const stockEditClass = isSE ? ' tx-stock-edit' : '';
+  return `<tr class="clickable${stockEditClass}" onclick="App.toggleTxDetail('${t.id}')">
     <td class="td-mono">${esc(t.no)}</td>
     <td>${fmtDate(t.date)}</td>
     <td>${esc(t.party)}${t.type === 'receive' && t.receiver ? `<br><span class="muted small">ผู้บันทึก: ${esc(t.receiver)}</span>` : ''}</td>
@@ -409,19 +381,39 @@ function txRowHtml(t) {
         </tr>`).join('')}</tbody>
       </table>
       ${t.type === 'receive' && t.receiver ? `<div class="tx-note">ผู้บันทึกข้อมูลรับเข้า: ${esc(t.receiver)}</div>` : ''}
+      ${t.type === 'issue' && t.receiver ? `<div class="tx-note">ผู้เบิก: ${esc(t.receiver)}</div>` : ''}
+      ${t.type === 'issue' && t.partyRx ? `<div class="tx-note">ผู้รับ: ${esc(t.partyRx)}</div>` : ''}
       ${t.workUnit ? `<div class="tx-note">งาน: ${esc(t.workUnit)}</div>` : ''}
       ${t.note ? `<div class="tx-note">หมายเหตุ: ${esc(t.note)}</div>` : ''}
     </div>
   </td></tr>`;
 }
 
-function renderTxHistory(type) {
-  const txs = Store.transactions().filter(t => t.type === type);
+function renderTxHistory(type, opts = {}) {
+  const showStockEdits = !!opts.stockEdits;
+  const allOfType = Store.transactions().filter(t => t.type === type);
+  const txs = allOfType.filter(t => isStockEditTx(t) === showStockEdits);
+  const seCount = allOfType.filter(isStockEditTx).length;
+  const normalCount = allOfType.length - seCount;
   const title = type === 'receive' ? 'ประวัติรับเข้าวัสดุ' : 'ประวัติจำหน่าย / เบิกจ่าย';
   const partyCol = type === 'receive' ? 'ผู้ส่งมอบ / ผู้บันทึก' : 'ผู้เบิก / หน่วยงาน';
   const allGroups = MISSIONS.flatMap(m => m.groups.map(g => ({ id: g.id, name: g.name, mission: m.name })));
   const deptOptions = allGroups.map(g => `<option value="${g.id}">${esc(g.name)}</option>`).join('');
   const rows = txs.map(txRowHtml).join('');
+  const baseHash = type === 'receive' ? '#/receive' : '#/issue';
+
+  /* แท็บแยกรายการผู้เบิกออก กับ รายการแก้ไขสต๊อก */
+  const tabs = `
+    <div class="tx-tabs">
+      <a class="tx-tab${showStockEdits ? '' : ' active'}" href="${baseHash}">
+        ${icon(type === 'receive' ? 'receive' : 'issue', 15)} <span>${type === 'receive' ? 'รับเข้าปกติ' : 'ผู้เบิกออก'}</span>
+        <span class="tx-tab-count">${fmtQty(normalCount)}</span>
+      </a>
+      <a class="tx-tab${showStockEdits ? ' active' : ''}" href="${baseHash}?tab=stockedits">
+        ${icon('edit', 15)} <span>แก้ไขสต๊อก</span>
+        <span class="tx-tab-count">${fmtQty(seCount)}</span>
+      </a>
+    </div>`;
 
   return `
   <div class="card">
@@ -431,14 +423,16 @@ function renderTxHistory(type) {
           <option value="">ทุกกลุ่มงาน</option>
           ${deptOptions}
         </select>` : ''}
+        ${showStockEdits && isMainAdmin() ? `<button class="btn btn-ghost danger" onclick="App.purgeStockEdits()" title="ลบรายการแก้ไขสต๊อกทั้งหมด">${icon('trash', 16)} ลบรายการแก้ไขสต๊อกทั้งหมด</button>` : ''}
         <div class="search-box">${icon('search', 16)}<input class="input" id="tx-search" placeholder="ค้นหาเลขที่ / ฝ่าย..." oninput="App.filterTx('${type}')"></div>
       </div>
     </div>
+    ${tabs}
     <div class="table-wrap">
       <table class="list"><thead><tr>
         <th>เลขที่</th><th>วันที่</th><th>${partyCol}</th><th>รายการ</th><th class="num">จำนวนรวม</th><th>ผู้บันทึก</th><th></th>
       </tr></thead>
-      <tbody id="tx-body-${type}">${rows || '<tr><td colspan="7"><div class="empty">' + icon('box', 34) + '<span>ยังไม่มีรายการ</span></div></td></tr>'}</tbody></table>
+      <tbody id="tx-body-${type}" data-stock-edits="${showStockEdits ? 1 : 0}">${rows || '<tr><td colspan="7"><div class="empty">' + icon('box', 34) + '<span>ยังไม่มีรายการ</span></div></td></tr>'}</tbody></table>
     </div>
   </div>`;
 }
@@ -446,9 +440,10 @@ function renderTxHistory(type) {
 App.filterTx = function (type) {
   const q = ($('#tx-search').value || '').toLowerCase();
   const groupFilter = $('#tx-dept-filter') ? $('#tx-dept-filter').value : '';
-  const txs = Store.transactions().filter(t => t.type === type);
   const body = $('#tx-body-' + type);
   if (!body) return;
+  const stockEdits = body.dataset.stockEdits === '1';
+  const txs = Store.transactions().filter(t => t.type === type && isStockEditTx(t) === stockEdits);
   const rows = txs.filter(t =>
     (!q || t.no.toLowerCase().includes(q) || t.party.toLowerCase().includes(q) || (t.receiver && t.receiver.toLowerCase().includes(q)) || t.items.some(l => l.name.toLowerCase().includes(q))) &&
     (!groupFilter || (t.group === groupFilter))
@@ -492,6 +487,23 @@ App.viewSerials = function (itemId) {
   openModal(modalShell(`Serial ของ ${esc(it.name)} (${esc(it.code)})`, body));
 };
 
+App.purgeStockEdits = function () {
+  const seCount = Store.transactions().filter(t => t.party === 'แก้ไขสต็อก' || t.party === 'แก้ไขจำนวนตรง').length;
+  if (!seCount) { toast('ไม่มีรายการแก้ไขสต็อกที่ต้องลบ', 'info'); return; }
+  if (typeof confirmAction === 'function') {
+    confirmAction('ลบรายการแก้ไขสต็อกทั้งหมด', `ต้องการลบรายการแก้ไขสต็อก <strong>${seCount}</strong> รายการ ใช่หรือไม่?<br><small style='color:#ef4444'>⚠️ จำนวนคงเหลือจะถูกคำนวณใหม่จากรายการรับ/เบิกที่เหลือ</small>`, () => {
+      const count = Store.deleteStockEditTransactions();
+      toast(`ลบรายการแก้ไขสต็อก ${count} รายการ เรียบร้อย`, 'success');
+      route();
+    }, 'ลบรายการ');
+  } else {
+    if (!confirm(`ต้องการลบรายการแก้ไขสต็อก ${seCount} รายการ ใช่หรือไม่?`)) return;
+    const count = Store.deleteStockEditTransactions();
+    toast(`ลบรายการแก้ไขสต็อก ${count} รายการ เรียบร้อย`, 'success');
+    route();
+  }
+};
+
 App.printAllLabels = function () { exportLabelSheetAll(); };
 
 App.renderLabels = function (id) {
@@ -503,12 +515,19 @@ App.renderLabels = function (id) {
 
 App.delTx = function (id) {
   const t = Store.transactions().find(x => x.id === id);
-  if (!t) return;
-  confirmAction('ลบรายการ', `ต้องการลบเอกสาร <strong>${esc(t.no)}</strong> ใช่หรือไม่? การลบจะส่งผลต่อยอดคงเหลือ`, () => {
+  if (!t) { toast('ไม่พบรายการนี้', 'error'); return; }
+  if (typeof confirmAction === 'function') {
+    confirmAction('ลบรายการ', `ต้องการลบเอกสาร <strong>${esc(t.no)}</strong> ใช่หรือไม่?<br><small style='color:#ef4444'>⚠️ การลบจะคืนจำนวนคงเหลืออัตโนมัติ</small>`, () => {
+      Store.deleteTransaction(id);
+      toast('ลบรายการ ' + t.no + ' เรียบร้อย', 'success');
+      route();
+    }, 'ลบรายการ');
+  } else {
+    if (!confirm('ต้องการลบเอกสาร ' + t.no + ' ใช่หรือไม่?')) return;
     Store.deleteTransaction(id);
-    toast('ลบรายการเรียบร้อย', 'info');
+    toast('ลบรายการ ' + t.no + ' เรียบร้อย', 'success');
     route();
-  }, 'ลบรายการ');
+  }
 };function renderTxForm(type) {
   const isRcv = type === 'receive';
   const idP = isRcv ? 'rv' : 'is';
@@ -573,13 +592,9 @@ App.delTx = function (id) {
             </select>
             <input id="${idP}-receiver-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้เบิก">
           </div>
-          <div class="field"><label>ผู้รับ *</label>
-            <select id="${idP}-party-rx" class="input" required onchange="document.getElementById('${idP}-party-rx-custom').classList.toggle('hidden', this.value !== 'other')">
-              <option value="">— เลือกผู้รับ —</option>
-              ${typeof RECEIVER_NAMES !== 'undefined' ? RECEIVER_NAMES.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('') : ''}
-              <option value="other">... พิมพ์เอง</option>
-            </select>
-            <input id="${idP}-party-rx-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อผู้รับ">
+          <div class="field" style="position:relative"><label>ผู้รับ *</label>
+            <input id="${idP}-party-rx" class="input" required placeholder="พิมพ์ชื่อผู้รับ..." autocomplete="off" oninput="App.filterReceiver(this, '${idP}')" onfocus="App.filterReceiver(this, '${idP}')" onblur="setTimeout(()=>document.getElementById('${idP}-rx-list').style.display='none',200)">
+            <div id="${idP}-rx-list" class="rx-suggest"></div>
           </div>`}
       <div class="field"><label>หมายเหตุ</label>
         <textarea id="${idP}-note" class="input" rows="2" placeholder="ระบุรายละเอียดเพิ่มเติม (ไม่บังคับ)"></textarea></div>
@@ -900,6 +915,91 @@ function startScanner() {
   });
 }
 
+App.editStockQty = function (id, td) {
+  if (!isMainAdmin()) return;
+  const item = Store.getItem(id);
+  if (!item) return;
+  /* ดึง qty จริงจาก getStock() */
+  const stockMap = {};
+  Store.getStock().forEach(s => { stockMap[s.id] = s.qty; });
+  const currentQty = stockMap[id] || 0;
+  td.innerHTML = `<input class="input" type="number" min="0" step="1" value="${currentQty}" style="width:80px;display:inline-block" onkeydown="if(event.key==='Enter')App.saveStockQty('${id}',this)" onblur="App.saveStockQty('${id}',this)">`;
+  td.querySelector('input').focus();
+  td.querySelector('input').select();
+};
+
+App.saveStockQty = function (id, input) {
+  const newQty = Number(input.value);
+  if (isNaN(newQty) || newQty < 0) { App.filterStock(); return; }
+  const item = Store.getItem(id);
+  if (!item) return;
+  /* ดึง qty จริงจาก getStock() เพราะ item.qty ไม่มีใน object ดิบ */
+  const stockMap = {};
+  Store.getStock().forEach(s => { stockMap[s.id] = s.qty; });
+  const oldQty = stockMap[id] || 0;
+  if (newQty === oldQty) { App.filterStock(); return; }
+  const diff = newQty - oldQty;
+  const type = diff > 0 ? 'receive' : 'issue';
+  const absDiff = Math.abs(diff);
+  Store.addTransaction({
+    type,
+    no: Store.nextTxNo(type),
+    date: todayStr(),
+    party: 'แก้ไขสต็อก',
+    receiver: '',
+    partyRx: '',
+    note: `แก้ไขจำนวนจาก ${fmtQty(oldQty)} เป็น ${fmtQty(newQty)} (${diff > 0 ? '+' : ''}${diff})`,
+    mission: item.mission || '',
+    group: item.group || '',
+    workUnit: item.workUnit || '',
+    items: [{ itemId: id, name: item.name, qty: absDiff, serials: [] }],
+  });
+  toast(`แก้ไขจำนวน ${item.name} จาก ${fmtQty(oldQty)} เป็น ${fmtQty(newQty)} ${item.unit} เรียบร้อย`, 'success');
+  App.filterStock();
+};
+
+App.setQtyDirect = function (id) {
+  if (!isMainAdmin()) return;
+  const item = Store.getItem(id);
+  if (!item) return;
+  const stockMap = {};
+  Store.getStock().forEach(s => { stockMap[s.id] = s.qty; });
+  const currentQty = stockMap[id] || 0;
+  openModal(modalShell('ตั้งจำนวนตรง — ' + item.name,
+    `<div class="form-grid">
+      <p class="muted small">จำนวนปัจจุบัน: <strong>${fmtQty(currentQty)} ${esc(item.unit)}</strong></p>
+      <p class="muted small" style="color:#e53935">⚠️ การตั้งจำนวนตรงจะลบรายการรับ/เบิกเดิมของวัสดุนี้ แล้วสร้างรายการรับใหม่ด้วยจำนวนที่กำหนด</p>
+      <div class="field"><label>จำนวนใหม่ *</label>
+        <input class="input" id="sqd-qty" type="number" min="0" step="1" value="${currentQty}" required></div>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">ยกเลิก</button>
+     <button class="btn btn-primary" onclick="App.saveQtyDirect('${id}')">${icon('check', 16)} บันทึก</button>`));
+};
+
+App.saveQtyDirect = function (id) {
+  const newQty = Number($('#sqd-qty').value);
+  if (isNaN(newQty) || newQty < 0) { toast('กรุณากรอกจำนวนที่ถูกต้อง', 'error'); return; }
+  const item = Store.getItem(id);
+  if (!item) return;
+  Store.setQtyDirect(id, newQty);
+  toast(`ตั้งจำนวน ${item.name} เป็น ${fmtQty(newQty)} ${item.unit} เรียบร้อย`, 'success');
+  closeModal();
+  App.filterStock();
+};
+
+/* ===== Autocomplete ผู้รับ ===== */
+App.filterReceiver = function (el, prefix) {
+  const q = el.value.trim().toLowerCase();
+  const list = document.getElementById(prefix + '-rx-list');
+  if (!list) return;
+  if (!q || q.length < 1) { list.style.display = 'none'; return; }
+  const names = (typeof RECEIVER_NAMES !== 'undefined') ? RECEIVER_NAMES : [];
+  const matches = names.filter(n => n.toLowerCase().includes(q)).slice(0, 10);
+  if (!matches.length) { list.style.display = 'none'; return; }
+  list.innerHTML = matches.map(n => `<div class="rx-item" onmousedown="document.getElementById('${prefix}-party-rx').value='${esc(n)}';document.getElementById('${prefix}-rx-list').style.display='none'">${esc(n)}</div>`).join('');
+  list.style.display = 'block';
+};
+
 App.filterStock = function (params) {
   const q = ($('#st-search').value || '').toLowerCase();
   const cat = $('#st-cat').value;
@@ -917,10 +1017,11 @@ App.filterStock = function (params) {
       <td class="td-item-name">${s.image ? `<img class="item-thumb" src="${esc(s.image)}" alt="">` : ''}<div><strong>${esc(s.name)}</strong><div class="muted small">${esc(s.location) || '—'}</div></div></td>
       <td><span class="chip-cat">${esc(s.category)}</span></td>
       <td>${esc(s.unit)}</td>
-      <td class="num"><strong>${fmtQty(s.qty)}</strong> ${s.status === 'out' ? '<span class="muted small">(หมด)</span>' : ''}</td>
+      <td class="num" ${isMainAdmin() ? `onclick="App.editStockQty('${s.id}', this)" style="cursor:pointer" title="คลิกเพื่อแก้ไขจำนวน"` : ''}><strong>${fmtQty(s.qty)}</strong> ${s.status === 'out' ? '<span class="muted small">(หมด)</span>' : ''}</td>
       <td>${statusBadge(s.status)}</td>
       <td class="actions">
         ${s.trackSerial ? `<button class="btn-icon" onclick="App.viewSerials('${s.id}')" title="ดู Serial ในคลัง">${icon('hash', 16)}</button>` : ''}
+        ${isMainAdmin() ? `<button class="btn-icon" onclick="App.setQtyDirect('${s.id}')" title="ตั้งจำนวนตรง (ไม่สร้างรายการ)">${icon('settings', 16)}</button>` : ''}
         <button class="btn-icon" onclick="App.printLabel('${s.id}')" title="พิมพ์ป้ายวัสดุ">${icon('tag', 16)}</button>
         <button class="btn-icon" onclick="App.editItem('${s.id}')" title="แก้ไข">${icon('edit', 16)}</button>
         ${isAdmin() ? `<button class="btn-icon danger" onclick="App.delItem('${s.id}')" title="ลบ">${icon('trash', 16)}</button>` : ''}
@@ -937,7 +1038,7 @@ App.editItem = function (id) { itemModal(Store.getItem(id)); };
 function itemModal(item) {
   const isEdit = !!item;
   const cats = Store.categories();
-  const catList = cats.map(c => `<option value="${esc(c)}">`).join('');
+  const catOptions = cats.map(c => `<option value="${esc(c)}" ${item && item.category === c ? 'selected' : ''}>${esc(c)}</option>`).join('');
   const missionOptions = MISSIONS.map(m => `<option value="${m.id}" ${item && item.mission === m.id ? 'selected' : ''}>${esc(m.name)}</option>`).join('');
   const selectedMission = item ? item.mission : '';
   const selectedGroup = item ? item.group : '';
@@ -947,13 +1048,22 @@ function itemModal(item) {
     `<form id="item-form" class="form-grid" onsubmit="return false">
       <div class="field"><label>รหัสวัสดุ</label>
         ${isEdit 
-          ? `<input class="input" value="${esc(item.code)}" disabled>` 
+          ? (isMainAdmin()
+            ? `<input class="input" id="if-code" value="${esc(item.code)}" placeholder="รหัสบาร์โค้ด">`
+            : `<input class="input" value="${esc(item.code)}" disabled>`) 
           : `<input class="input" id="if-code" value="" placeholder="พิมพ์หรือสแกนบาร์โค้ด" oninput="document.getElementById('if-auto-code').checked = this.value.trim() === ''">
             <label class="check mt-1"><input type="checkbox" id="if-auto-code" checked onchange="if(this.checked){document.getElementById('if-code').value=''}"> สร้างอัตโนมัติ (ไม่มีบาร์โค้ด)</label>`}
       </div>
       <div class="field"><label>ชื่อวัสดุ *</label><input class="input" id="if-name" value="${esc(item ? item.name : '')}" placeholder="เช่น เมาส์ไร้สาย Logitech" required></div>
-      <div class="field"><label>หมวดหมู่ *</label><input class="input" id="if-cat" list="cat-list" value="${esc(item ? item.category : '')}" placeholder="เลือกหรือพิมพ์หมวดหมู่" required>
-        <datalist id="cat-list">${catList}</datalist></div>
+      <div class="field"><label>หมวดหมู่ *</label>
+        <select class="input" id="if-cat" required>
+          <option value="">— เลือกหมวดหมู่ —</option>
+          ${catOptions}
+          <option value="__new__">+ เพิ่มหมวดหมู่ใหม่...</option>
+        </select>
+        <input class="input mt-2 hidden" id="if-cat-new" placeholder="พิมพ์ชื่อหมวดหมู่ใหม่" oninput="document.getElementById('if-cat').value='__new__'">
+        <script>document.getElementById('if-cat').addEventListener('change',function(){document.getElementById('if-cat-new').classList.toggle('hidden',this.value!=='__new__');if(this.value!=='__new__')document.getElementById('if-cat-new').value=''});</script>
+      </div>
 
       <div class="field"><label>หน่วยนับ *</label><input class="input" id="if-unit" value="${esc(item ? item.unit : '')}" placeholder="ตัว / เครื่อง / เส้น" required></div>
 
@@ -1030,7 +1140,8 @@ App.clearItemImage = function () {
 
 App.saveItem = function (id) {
   const name = $('#if-name').value.trim();
-  const category = $('#if-cat').value.trim();
+  const catSelect = $('#if-cat').value;
+  const category = catSelect === '__new__' ? ($('#if-cat-new') ? $('#if-cat-new').value.trim() : '') : catSelect.trim();
   const unit = $('#if-unit').value.trim();
   if (!name || !category || !unit) { toast('กรุณากรอกชื่อ หมวดหมู่ และหน่วยนับให้ครบ', 'error'); return; }
   /* รหัสวัสดุ: ใช้บาร์โค้ดที่สแกน หรือสร้างอัตโนมัติ */
@@ -1043,6 +1154,9 @@ App.saveItem = function (id) {
     } else if (codeInput && codeInput.value.trim()) {
       code = codeInput.value.trim();
     }
+  } else if (isMainAdmin() && codeInput && codeInput.value.trim()) {
+    /* Admin001 แก้ไขรหัสวัสดุได้ */
+    code = codeInput.value.trim();
   }
   const data = {
     name, category, unit,
@@ -1507,56 +1621,8 @@ App.doImportItems = async function () {
    ============================================================ */
 function renderSettings() {
   const cfg = Telegram.getConfig();
-  const fbCfg = (typeof FirebaseDB !== 'undefined' && FirebaseDB.config) ? FirebaseDB.config : {};
-  const fbConnected = (typeof FirebaseDB !== 'undefined' && FirebaseDB.connected);
   
   return `
-  <div class="card">
-    <div class="card-head"><div><h3>🔗 เชื่อมต่อ Firebase (ซิงค์ข้อมูลหลายเครื่อง)</h3>
-      <p class="muted small">เชื่อมต่อ Firebase Realtime Database เพื่อให้ข้อมูลซิงค์ระหว่าง PC, iPad และมือถืออัตโนมัติ</p></div></div>
-    <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      ${fbConnected ? '<span class="badge badge-success">✅ เชื่อมต่อแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่เชื่อมต่อ</span>'}
-      <label class="check muted small" style="margin:0">
-        <input type="checkbox" id="sync-sound-toggle" ${localStorage.getItem('it_stock_sync_sound') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncSound(this.checked)"> เปิดเสียง sync
-      </label>
-      <label class="check muted small" style="margin:0">
-        <input type="checkbox" id="sync-notify-toggle" ${localStorage.getItem('it_stock_sync_notify') !== 'off' ? 'checked' : ''} onchange="App.toggleSyncNotify(this.checked)"> แจ้งเตือน sync
-      </label>
-    </div>
-    <form id="fb-form" class="form-grid" onsubmit="return false">
-      <div class="field full">
-        <label>API Key</label>
-        <input class="input" id="fb-apikey" type="password" value="${esc(fbCfg.apiKey || '')}" placeholder="AIzaSy...">
-      </div>
-      <div class="field full">
-        <label>Auth Domain</label>
-        <input class="input" id="fb-authdomain" value="${esc(fbCfg.authDomain || '')}" placeholder="your-project.firebaseapp.com">
-      </div>
-      <div class="field full">
-        <label>Database URL</label>
-        <input class="input" id="fb-dburl" value="${esc(fbCfg.databaseURL || '')}" placeholder="https://your-project-default-rtdb.firebaseio.com">
-      </div>
-      <div class="field full">
-        <label>Project ID</label>
-        <input class="input" id="fb-projectid" value="${esc(fbCfg.projectId || '')}" placeholder="your-project-id">
-      </div>
-    </form>
-    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-primary" onclick="App.saveFirebaseConfig()">${icon('check', 16)} บันทึกและเชื่อมต่อ</button>
-      <button class="btn btn-outline" onclick="App.testFirebase()">${icon('send', 16)} ทดสอบการเชื่อมต่อ</button>
-      <button class="btn btn-soft" onclick="App.syncNow()">${icon('refresh', 16)} ซิงค์ข้อมูลเดี๋ยวนี้</button>
-      ${fbConnected ? `<button class="btn btn-danger" onclick="App.disconnectFirebase()">${icon('x', 16)} ยกเลิกการเชื่อมต่อ</button>` : ''}
-    </div>
-    <div class="muted small" style="margin-top:10px">
-      <strong>วิธีตั้งค่า Firebase:</strong>
-      <ol style="margin:5px 0;padding-left:20px">
-        <li>ไปที่ <a href="https://console.firebase.google.com" target="_blank">Firebase Console</a></li>
-        <li>สร้าง Project ใหม่ (หรือใช้ project ที่มีอยู่)</li>
-        <li>เปิด <strong>Realtime Database</strong> → Create Database → Start in test mode</li>
-        <li>ไปที่ Project Settings → General → คัดลอก Config มาใส่ด้านบน</li>
-      </ol>
-    </div>
-  </div>
 
   <div class="card">
     <div class="card-head"><div><h3>ตั้งค่าระบบแจ้งเตือน Telegram</h3>
@@ -1599,6 +1665,75 @@ function renderSettings() {
         </tbody>
       </table>
     </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h3>💾 Backup & Restore (สำรองและกู้คืนข้อมูล)</h3>
+      <p class="muted small">ดาวน์โหลดไฟล์ backup หรือนำเข้าข้อมูลจากไฟล์ backup</p></div></div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:10px">
+      <button class="btn btn-success" onclick="App.exportBackup()">${icon('download', 16)} ดาวน์โหลด Backup (JSON)</button>
+      <button class="btn btn-primary" onclick="App.exportBackupQR()">📱 สร้าง QR Code</button>
+      <label class="btn btn-warning" style="cursor:pointer">${icon('upload', 16)} นำเข้า Backup
+        <input type="file" accept=".json" style="display:none" onchange="App.importBackup(this)">
+      </label>
+    </div>
+    ${(() => {
+      const seCount = Store.transactions().filter(t => t.party === 'แก้ไขสต็อก' || t.party === 'แก้ไขจำนวนตรง').length;
+      return seCount > 0 ? `<div style="margin-top:12px;padding:12px;background:#fff3e0;border-radius:8px;border:1px solid #ffcc80">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span>⚠️ มีรายการแก้ไขสต็อก <strong>${seCount}</strong> รายการ ที่ทำให้ตัวเลขจำหน่ายบวม</span>
+          <button class="btn btn-danger" onclick="App.purgeStockEdits()">${icon('trash', 16)} ลบรายการแก้ไขสต็อกทั้งหมด</button>
+        </div>
+        <p class="muted small" style="margin-top:5px">ลบ transaction แก้ไขสต็อกออก จำนวนคงเหลือจะถูกคำนวณใหม่จากรายการรับเข้าที่เหลือ</p>
+      </div>` : '';
+    })()}
+    <div class="muted small" style="margin-top:15px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+      <strong>💡 วิธีใช้:</strong>
+      <ul style="margin:5px 0;padding-left:20px">
+        <li><strong>ดาวน์โหลด Backup:</strong> บันทึกข้อมูลทั้งหมดเป็นไฟล์ .json — เก็บไว้ในที่ปลอดภัย</li>
+        <li><strong>นำเข้า Backup:</strong> เลือกไฟล์ .json ที่เคย backup ไว้ → ข้อมูลจะถูกกู้คืนทั้งหมด</li>
+      </ul>
+      <p style="margin-top:8px"><strong>⚠️ ควร backup สม่ำเสมอ</strong> โดยเฉพาะก่อนแก้ไขข้อมูลจำนวนมาก</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head"><div><h3>☁️ Cloud Backup (สำรองข้อมูลบน Cloudflare)</h3>
+      <p class="muted small">สำรองข้อมูลขึ้น Cloudflare — เข้าถึงได้จากทุกที่ ทุกอุปกรณ์</p></div></div>
+    ${(() => {
+      const cloudKey = localStorage.getItem('it_stock_cloud_backup_key') || '';
+      const lastBackup = localStorage.getItem('it_stock_cloud_last_backup');
+      return `
+    <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      ${cloudKey ? '<span class="badge badge-success">✅ ตั้งค่าแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่ได้ตั้งค่า</span>'}
+      ${lastBackup ? `<span class="muted small">backup ล่าสุด: ${new Date(parseInt(lastBackup)).toLocaleString('th-TH')}</span>` : ''}
+    </div>
+    <div class="form-grid">
+      <div class="field full">
+        <label>🔑 Cloud Key (รหัสสำรองข้อมูล)</label>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <input class="input" id="cloud-backup-key" type="password" value="${esc(cloudKey)}" placeholder="ใส่รหัสลับสำหรับ backup (min 6 ตัวอักษร)">
+          <button type="button" class="btn btn-sm" onclick="const i=document.getElementById('cloud-backup-key');i.type=i.type==='password'?'text':'password'">👁️</button>
+        </div>
+        <p class="muted small" style="margin-top:5px">ใช้รหัสนี้สำหรับ backup และ restore ข้อมูลจากทุกเครื่อง</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+      <button class="btn btn-success" onclick="App.cloudBackup()">☁️ สำรองข้อมูลขึ้น Cloud</button>
+      <button class="btn btn-primary" onclick="App.cloudRestore()">📥 กู้คืนข้อมูลจาก Cloud</button>
+      <button class="btn btn-outline" onclick="App.cloudCheckBackup()">🔍 ตรวจสอบ Backup</button>
+    </div>
+    <div class="muted small" style="margin-top:15px;padding:10px;background:var(--bg-secondary);border-radius:8px">
+      <strong>💡 วิธีใช้ Cloud Backup:</strong>
+      <ol style="margin:5px 0;padding-left:20px">
+        <li>ใส่ <strong>Cloud Key</strong> อะไรก็ได้ (เช่น <code>itstock-2026</code>) — ใส่เหมือนกันทุกเครื่อง</li>
+        <li>กด <strong>☁️ สำรองข้อมูลขึ้น Cloud</strong> → ข้อมูลจะถูกเก็บบน Cloudflare</li>
+        <li>บนเครื่องอื่น → ใส่ Cloud Key เดียวกัน → กด <strong>📥 กู้คืนข้อมูลจาก Cloud</strong></li>
+      </ol>
+      <p style="margin-top:8px"><strong>⚠️ เก็บ Cloud Key ไว้ที่ปลอดภัย</strong> — ถ้าหายจะกู้ข้อมูลไม่ได้</p>
+    </div>
+  </div>`;
+    })()}
   </div>`;
 }
 
@@ -1625,6 +1760,93 @@ App.testTelegram = async function () {
   }
 };
 
+/* ============================================================
+   Cloud Backup (Cloudflare KV)
+   ============================================================ */
+
+const CLOUD_BACKUP_API = 'https://it-stock-backup.itstocksync.workers.dev/api/backup';
+
+App.cloudBackup = async function () {
+  const key = document.getElementById('cloud-backup-key').value.trim();
+  if (!key || key.length < 6) { toast('Cloud Key ต้องมีอย่างน้อย 6 ตัวอักษร', 'error'); return; }
+  localStorage.setItem('it_stock_cloud_backup_key', key);
+
+  toast('กำลังสำรองข้อมูลขึ้น Cloud...', 'info');
+  try {
+    const backupData = {
+      items: Store.db.items || [],
+      transactions: Store.db.transactions || [],
+      users: Store.db.users || [],
+      reorderItems: Store.db.reorderItems || [],
+      _exportDate: new Date().toISOString(),
+    };
+    const resp = await fetch(`${CLOUD_BACKUP_API}?key=${encodeURIComponent(key)}`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(backupData) }
+    );
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const result = await resp.json();
+    localStorage.setItem('it_stock_cloud_last_backup', Date.now().toString());
+    toast(`☁️ สำรองข้อมูลสำเร็จ! (${result.itemCount} รายการ)`, 'success');
+    route();
+  } catch (e) {
+    toast('สำรองไม่สำเร็จ: ' + e.message, 'error');
+  }
+};
+
+App.cloudRestore = async function () {
+  const key = document.getElementById('cloud-backup-key').value.trim();
+  if (!key || key.length < 6) { toast('กรุณาใส่ Cloud Key', 'error'); return; }
+  localStorage.setItem('it_stock_cloud_backup_key', key);
+
+  if (!confirm('กู้คืนข้อมูลจาก Cloud?\nข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด')) return;
+
+  toast('กำลังดึงข้อมูลจาก Cloud...', 'info');
+  try {
+    const resp = await fetch(`${CLOUD_BACKUP_API}?key=${encodeURIComponent(key)}`);
+    if (resp.status === 404) { toast('ไม่พบ backup สำหรับ Cloud Key นี้', 'error'); return; }
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const data = await resp.json();
+
+    // ตรวจสอบว่ามีข้อมูลจริง
+    if (!data.items || data.items.length === 0) {
+      toast('ไม่พบข้อมูลใน backup', 'error');
+      return;
+    }
+
+    // แทนที่ข้อมูล
+    Store.db = {
+      items: data.items || [],
+      transactions: data.transactions || [],
+      users: data.users || Store.db.users || [],
+      reorderItems: data.reorderItems || [],
+    };
+    Store.save();
+    toast(`📥 กู้คืนสำเร็จ! (${data.items.length} รายการ)`, 'success');
+    route();
+  } catch (e) {
+    toast('กู้คืนไม่สำเร็จ: ' + e.message, 'error');
+  }
+};
+
+App.cloudCheckBackup = async function () {
+  const key = document.getElementById('cloud-backup-key').value.trim();
+  if (!key || key.length < 6) { toast('กรุณาใส่ Cloud Key', 'error'); return; }
+
+  toast('กำลังตรวจสอบ...', 'info');
+  try {
+    const resp = await fetch(`${CLOUD_BACKUP_API}/list?key=${encodeURIComponent(key)}`);
+    const data = await resp.json();
+    if (data.exists) {
+      const d = new Date(data.backupAt);
+      toast(`✅ พบ backup!\nรายการ: ${data.itemCount} รายการ\nธุรกรรม: ${data.transactionCount} รายการ\nเวลา: ${d.toLocaleString('th-TH')}`, 'success');
+    } else {
+      toast('❌ ไม่พบ backup สำหรับ Cloud Key นี้', 'error');
+    }
+  } catch (e) {
+    toast('ตรวจสอบไม่สำเร็จ: ' + e.message, 'error');
+  }
+};
+
 App.sendDailySummary = async function () {
   const cfg = Telegram.getConfig();
   if (!cfg.enabled || !cfg.botToken || !cfg.chatId) { toast('กรุณาเปิดใช้งานและตั้งค่า Telegram ก่อน', 'error'); return; }
@@ -1633,88 +1855,214 @@ App.sendDailySummary = async function () {
 };
 
 /* ============================================================
-   Firebase Functions
+   MySQL Functions
+   ============================================================ */
+App.toggleMySQL = function (enabled) {
+  if (typeof MySQLBackend !== 'undefined') MySQLBackend.setEnabled(enabled);
+};
+
+App.saveMySQLConfig = async function () {
+  const enabled = document.getElementById('mysql-enabled').checked;
+  const url = document.getElementById('mysql-url').value.trim();
+  if (typeof MySQLBackend !== 'undefined') {
+    MySQLBackend.setUrl(url);
+    MySQLBackend.setEnabled(enabled);
+  }
+  if (enabled && url) {
+    toast('กำลังเชื่อมต่อ MySQL...', 'info');
+    const ok = await MySQLBackend.healthCheck();
+    if (ok) {
+      toast('เชื่อมต่อ MySQL สำเร็จ!', 'success');
+      await Store.syncFromMySQL();
+    } else {
+      toast('เชื่อมต่อ MySQL ไม่สำเร็จ — ตรวจสอบว่า server รันอยู่', 'error');
+    }
+  }
+  toast('บันทึกการตั้งค่า MySQL เรียบร้อย', 'success');
+  route();
+};
+
+App.testMySQL = async function () {
+  if (typeof MySQLBackend === 'undefined') { toast('MySQL module ไม่พร้อมใช้งาน', 'error'); return; }
+  const url = document.getElementById('mysql-url').value.trim();
+  MySQLBackend.setUrl(url);
+  toast('กำลังทดสอบ...', 'info');
+  const ok = await MySQLBackend.healthCheck();
+  if (ok) {
+    toast('เชื่อมต่อ MySQL สำเร็จ! ✅', 'success');
+  } else {
+    toast('เชื่อมต่อไม่สำเร็จ ❌ — ตรวจสอบว่า server รันอยู่ที่ ' + url, 'error');
+  }
+};
+
+App.syncFromMySQL = async function () {
+  if (typeof MySQLBackend === 'undefined') { toast('MySQL module ไม่พร้อมใช้งาน', 'error'); return; }
+  toast('กำลังดึงข้อมูลจาก MySQL...', 'info');
+  const ok = await Store.syncFromMySQL();
+  if (ok) {
+    toast('ดึงข้อมูลจาก MySQL สำเร็จ! ✅', 'success');
+    route();
+  } else {
+    toast('ดึงข้อมูลไม่สำเร็จ', 'error');
+  }
+};
+
+App.syncToMySQL = async function () {
+  if (typeof MySQLBackend === 'undefined') { toast('MySQL module ไม่พร้อมใช้งาน', 'error'); return; }
+  toast('กำลังดันข้อมูลไป MySQL...', 'info');
+  const count = await Store.syncToMySQL();
+  if (count !== false) {
+    toast(`ดันข้อมูลไป MySQL สำเร็จ! ${count} รายการ ✅`, 'success');
+    route();
+  } else {
+    toast('ดันข้อมูลไม่สำเร็จ', 'error');
+  }
+};
+
+/* ============================================================
+   Backup & Restore
    ============================================================ */
 
-App.saveFirebaseConfig = async function () {
-  const config = {
-    apiKey: document.getElementById('fb-apikey').value.trim(),
-    authDomain: document.getElementById('fb-authdomain').value.trim(),
-    databaseURL: document.getElementById('fb-dburl').value.trim(),
-    projectId: document.getElementById('fb-projectid').value.trim(),
-  };
-
-  if (!config.apiKey || !config.databaseURL) {
-    toast('กรุณากรอก API Key และ Database URL', 'error');
-    return;
-  }
-
-  // บันทึก config
-  FirebaseDB.saveConfig(config);
-
-  // เชื่อมต่อ
-  const connected = await FirebaseDB.connect();
-  if (connected) {
-    toast('เชื่อมต่อ Firebase สำเร็จ!', 'success');
-    // ซิงค์ข้อมูล
-    await FirebaseDB.syncToFirebase();
-    // ฟังการเปลี่ยนแปลง
-    FirebaseDB.onChanges((data) => {
-      console.log('Firebase data changed, refreshing...');
-      route();
-    });
-  } else {
-    toast('เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ Config', 'error');
-  }
-  route();
+App.exportBackup = function () {
+  const db = Store.db;
+  if (!db) { toast('ไม่มีข้อมูลให้ backup', 'error'); return; }
+  const backup = JSON.stringify(db, null, 2);
+  const blob = new Blob([backup], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  a.href = url;
+  a.download = `IT-Stock-Backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast('ดาวน์โหลดไฟล์ backup เรียบร้อย! ✅', 'success');
 };
 
-App.testFirebase = async function () {
-  const config = {
-    apiKey: document.getElementById('fb-apikey').value.trim(),
-    authDomain: document.getElementById('fb-authdomain').value.trim(),
-    databaseURL: document.getElementById('fb-dburl').value.trim(),
-    projectId: document.getElementById('fb-projectid').value.trim(),
-  };
-
-  if (!config.apiKey || !config.databaseURL) {
-    toast('กรุณากรอก API Key และ Database URL', 'error');
-    return;
-  }
-
-  // บันทึก config ชั่วคราว
-  FirebaseDB.saveConfig(config);
-  const connected = await FirebaseDB.connect();
-
-  if (connected) {
-    const result = await FirebaseDB.testConnection();
-    if (result.success) {
-      toast('ทดสอบสำเร็จ! Firebase พร้อมใช้งาน', 'success');
-    } else {
-      toast('เชื่อมต่อได้แต่มีปัญหา: ' + result.error, 'error');
+App.importBackup = function (input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function (e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data || !Array.isArray(data.items)) { toast('ไฟล์ backup ไม่ถูกต้อง', 'error'); return; }
+      if (!confirm(`นำเข้าข้อมูลจาก backup?\n- อุปกรณ์: ${data.items.length} รายการ\n- รายการ: ${(data.transactions || []).length} รายการ\n- ผู้ใช้: ${(data.users || []).length} คน\n\n⚠️ ข้อมูลปัจจุบันจะถูกเขียนทับ`)) return;
+      localStorage.setItem('it_stock_db_v5', JSON.stringify(data));
+      toast('นำเข้า backup สำเร็จ! กำลังรีเฟรช...', 'success');
+      setTimeout(() => location.reload(), 500);
+    } catch (err) {
+      toast('ไฟล์ backup เสียหาย: ' + err.message, 'error');
     }
-  } else {
-    toast('เชื่อมต่อไม่สำเร็จ กรุณาตรวจสอบ Config', 'error');
+  };
+  reader.readAsText(file);
+  input.value = '';
+};
+
+/* ============================================================
+   QR Code Backup
+   ============================================================ */
+
+App.exportBackupQR = async function () {
+  const db = Store.db;
+  if (!db) { toast('ไม่มีข้อมูลให้ backup', 'error'); return; }
+  
+  // สร้าง modal
+  const modal = document.createElement('div');
+  modal.className = 'modal-overlay';
+  modal.innerHTML = `
+    <div class="modal" style="max-width:420px;text-align:center">
+      <div class="card-head"><div><h3>📱 QR Code Backup</h3>
+        <p class="muted small">สแกน QR Code ด้วยมือถือเพื่อนำเข้าข้อมูล</p></div></div>
+      <div id="qr-loading" style="padding:30px">
+        <div class="spinner"></div>
+        <p style="margin-top:10px;color:var(--text-secondary)">กำลังอัพโหลดข้อมูล...</p>
+      </div>
+      <div id="qr-result" style="display:none;padding:20px">
+        <div id="qr-code" style="display:inline-block;margin:10px auto"></div>
+        <p style="margin:10px 0;font-size:13px;color:var(--text-secondary)">สแกน QR Code ด้วยกล้องมือถือ</p>
+        <div style="background:var(--bg-secondary);padding:10px;border-radius:8px;margin:10px 0;word-break:break-all;font-size:11px;color:var(--text-secondary)" id="qr-url"></div>
+        <button class="btn btn-primary" onclick="navigator.clipboard.writeText(document.getElementById('qr-url').textContent);toast('คัดลอกลิงก์แล้ว!','success')" style="margin-top:10px">📋 คัดลอกลิงก์</button>
+      </div>
+      <div id="qr-error" style="display:none;padding:20px;color:var(--error)">
+        <p>❌ ไม่สามารถสร้าง QR Code ได้</p>
+        <p id="qr-error-msg" style="font-size:12px"></p>
+      </div>
+      <div style="padding:10px"><button class="btn" onclick="this.closest('.modal-overlay').remove()">ปิด</button></div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+
+  try {
+    // upload to 0x0.st
+    const backup = JSON.stringify(db);
+    const formData = new FormData();
+    formData.append('file', new Blob([backup], { type: 'application/json' }), 'it-stock-backup.json');
+    
+    const resp = await fetch('https://0x0.st', { method: 'POST', body: formData });
+    if (!resp.ok) throw new Error('Upload failed: ' + resp.status);
+    const url = (await resp.text()).trim();
+    
+    // แสดง QR Code
+    document.getElementById('qr-loading').style.display = 'none';
+    document.getElementById('qr-result').style.display = 'block';
+    document.getElementById('qr-url').textContent = url;
+    
+    // สร้าง QR Code ชี้ไปที่หน้า import
+    const importUrl = location.origin + location.pathname + '#import=' + encodeURIComponent(url);
+    new QRCode(document.getElementById('qr-code'), {
+      text: importUrl,
+      width: 200,
+      height: 200,
+      colorDark: '#1e293b',
+      colorLight: '#ffffff',
+    });
+    toast('สร้าง QR Code สำเร็จ! ✅', 'success');
+  } catch (err) {
+    document.getElementById('qr-loading').style.display = 'none';
+    document.getElementById('qr-error').style.display = 'block';
+    document.getElementById('qr-error-msg').textContent = err.message;
+    console.error('QR export error:', err);
   }
 };
 
-App.syncNow = async function () {
-  if (!FirebaseDB.connected) {
-    toast('กรุณาเชื่อมต่อ Firebase ก่อน', 'error');
-    return;
+/* Auto-import from URL hash */
+App.checkImportFromURL = async function () {
+  const hash = location.hash;
+  if (!hash || !hash.startsWith('#import=')) return false;
+  const url = decodeURIComponent(hash.slice(8));
+  if (!url) return false;
+  
+  // ลบ hash เพื่อไม่ให้ import ซ้ำ
+  history.replaceState(null, '', location.pathname);
+  
+  try {
+    toast('กำลังดาวน์โหลดข้อมูลจาก QR Code...', 'info');
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('Download failed: ' + resp.status);
+    const data = await resp.json();
+    
+    if (!data || !Array.isArray(data.items)) {
+      toast('ไฟล์ backup ไม่ถูกต้อง', 'error');
+      return false;
+    }
+    
+    if (!confirm(`นำเข้าข้อมูลจาก QR Code?\n- อุปกรณ์: ${data.items.length} รายการ\n- รายการ: ${(data.transactions || []).length} รายการ\n- ผู้ใช้: ${(data.users || []).length} คน\n\n⚠️ ข้อมูลปัจจุบันจะถูกเขียนทับ`)) return false;
+    
+    localStorage.setItem('it_stock_db_v5', JSON.stringify(data));
+    toast('นำเข้าข้อมูลสำเร็จ! กำลังรีเฟรช...', 'success');
+    setTimeout(() => location.reload(), 500);
+    return true;
+  } catch (err) {
+    toast('นำเข้าไม่สำเร็จ: ' + err.message, 'error');
+    return false;
   }
-
-  toast('กำลังซิงค์ข้อมูล...', 'info');
-  await FirebaseDB.syncToFirebase();
-  toast('ซิงค์ข้อมูลเรียบร้อย!', 'success');
 };
 
-App.disconnectFirebase = function () {
-  FirebaseDB.disconnect();
-  FirebaseDB.clearConfig();
-  toast('ยกเลิกการเชื่อมต่อ Firebase แล้ว', 'info');
-  route();
-};
+/* Cloud Sync + Firebase removed */
+
+/* Cloud Sync + Firebase + Local Sync functions removed */
 
 /* ============================================================
    พิมพ์บาร์โค้ด
@@ -1856,6 +2204,7 @@ App.updateSelectedCount = function() {
 };
 
 App.updateBarcodePreview = function() {
+  // Update preview if visible
   const previewArea = document.getElementById('barcode-preview-area');
   if (previewArea && !previewArea.classList.contains('hidden')) {
     App.previewBarcodes();
@@ -1907,12 +2256,14 @@ App.previewBarcodes = function() {
   
   previewContent.innerHTML = html;
   
+  // Generate barcodes and QR codes
   setTimeout(() => {
     selectedIds.forEach(id => {
       const item = Store.getItem(id);
       if (!item) return;
       
       for (let i = 0; i < copies; i++) {
+        // Generate barcode
         if (layout !== 'qr-only') {
           const svgEl = document.getElementById(`barcode-${id}-${i}`);
           if (svgEl && typeof JsBarcode !== 'undefined') {
@@ -1927,10 +2278,12 @@ App.previewBarcodes = function() {
               });
             } catch (e) {
               console.error('Barcode generation error:', e);
+              svgEl.insertAdjacentHTML('afterend', '<div style="color: red; font-size: 12px;">ไม่สามารถสร้างบาร์โค้ดได้</div>');
             }
           }
         }
         
+        // Generate QR code
         if (layout !== 'barcode-only') {
           const qrEl = document.getElementById(`qr-${id}-${i}`);
           if (qrEl && typeof qrcode === 'function') {
@@ -1942,6 +2295,7 @@ App.previewBarcodes = function() {
               qrEl.innerHTML = `<img src="${qrImg}" style="width: ${s.qrSize}px; height: ${s.qrSize}px;">`;
             } catch (e) {
               console.error('QR generation error:', e);
+              qrEl.innerHTML = '<div style="color: red; font-size: 12px;">ไม่สามารถสร้าง QR ได้</div>';
             }
           }
         }
@@ -1970,6 +2324,7 @@ App.printBarcodes = function() {
   };
   const s = sizeMap[size] || sizeMap.medium;
   
+  // Pre-generate QR codes as data URLs
   const qrDataUrls = {};
   if (layout !== 'barcode-only' && typeof qrcode === 'function') {
     selectedIds.forEach(id => {
@@ -1980,7 +2335,9 @@ App.printBarcodes = function() {
         qr.addData(item.code);
         qr.make();
         qrDataUrls[id] = qr.createDataURL(4, 0);
-      } catch (e) { /* ignore */ }
+      } catch (e) {
+        console.error('QR generation error:', e);
+      }
     });
   }
   
@@ -2042,13 +2399,343 @@ App.printBarcodes = function() {
   printContent += '};';
   printContent += '<\/script></body></html>';
   
-  const printWindow = window.open('', '_blank');
-  if (printWindow) {
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-  } else {
-    toast('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ — กรุณาอนุญาต popup', 'error');
+  // Open print window
+  try {
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (printWindow && !printWindow.closed) {
+      printWindow.document.write(printContent);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 500);
+      return;
+    }
+  } catch(e) {}
+  // Fallback: iframe
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:none;background:#fff';
+  iframe.srcdoc = printContent;
+  document.body.appendChild(iframe);
+  iframe.onload = () => { try { iframe.contentWindow.print(); } catch(e) {} };
+  setTimeout(() => { if (iframe.parentNode) iframe.remove(); }, 5000);
+};
+
+/* ============================================================
+   รายการต้องสั่งเพิ่ม
+   ============================================================ */
+function renderReorder() {
+  const stock = Store.getStock();
+  const categories = Store.categories();
+  const reorderItems = Store.getReorderItems();
+  const categoryOptions = categories.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  const qtyOptions = Array.from({ length: 100 }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('');
+
+  const itemRows = reorderItems.map(ri => {
+    const item = Store.getItem(ri.itemId);
+    const displayName = ri.itemName || (item ? item.name : ri.itemId);
+    const cat = ri.category || (item ? item.category : '-');
+    return `<tr>
+      <td>${esc(displayName)}</td>
+      <td>${esc(cat)}</td>
+      <td class="num">${fmtQty(ri.qty)}</td>
+      <td>${esc(ri.unit || (item ? item.unit : ''))}</td>
+      <td class="actions">
+        <button class="btn-icon danger" onclick="App.deleteReorderItem('${ri.id}')" title="ลบรายการ">${icon('trash', 16)}</button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="card">
+    <div class="card-head"><div><h3>เพิ่มรายการต้องสั่งเพิ่ม</h3><p class="muted small">เลือกวัสดุและระบุจำนวนที่ต้องสั่งซื้อเพิ่ม</p></div></div>
+    <form id="reorder-form" onsubmit="App.addReorderItem(event)">
+      <div class="form-grid">
+        <div class="field">
+          <label>หมวดหมู่ *</label>
+          <select id="reorder-category" class="input" required onchange="App.onReorderCategoryChange(); document.getElementById('reorder-category-custom').classList.toggle('hidden', this.value !== 'other')">
+            <option value="">— เลือกหมวดหมู่ —</option>
+            ${categoryOptions}
+            <option value="other">... พิมพ์เอง</option>
+          </select>
+          <input id="reorder-category-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่อหมวดหมู่">
+        </div>
+        <div class="field">
+          <label>อุปกรณ์ *</label>
+          <select id="reorder-item" class="input" required onchange="document.getElementById('reorder-item-custom').classList.toggle('hidden', this.value !== 'other')">
+            <option value="">— เลือกวัสดุ —</option>
+            ${stock.map(s => `<option value="${s.id}" data-cat="${esc(s.category)}" data-unit="${esc(s.unit)}">${esc(s.name)} (${esc(s.code)}) — คงเหลือ ${fmtQty(s.qty)} ${esc(s.unit)}</option>`).join('')}
+            <option value="other">... พิมพ์เอง</option>
+          </select>
+          <input id="reorder-item-custom" class="input mt-2 hidden" placeholder="พิมพ์ชื่ออุปกรณ์ที่ต้องสั่งเพิ่ม">
+        </div>
+        <div class="field">
+          <label>จำนวนที่ต้องสั่ง *</label>
+          <select id="reorder-qty" class="input" required>
+            <option value="">— เลือกจำนวน —</option>
+            ${qtyOptions}
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary">${icon('plus', 16)} เพิ่มรายการ</button>
+      </div>
+    </form>
+    <div style="margin-top:12px;">
+      <p class="muted small" style="margin-bottom:6px;">🔍 ค้นหาวัสดุใกล้หมด (คงเหลือไม่เกิน):</p>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        ${[1,2,3,4,5,6,7,8,9,10,15,20,30,50].map(n => `<button type="button" class="btn btn-soft btn-sm" onclick="App.findLowStock(${n})" style="min-width:36px;">${n}</button>`).join('')}
+      </div>
+      <div id="low-stock-result" class="hidden" style="margin-top:10px;"></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div><h3>รายการที่ต้องสั่งเพิ่ม</h3><p class="muted small">${reorderItems.length} รายการ</p></div>
+      <div class="card-head-actions">
+        ${reorderItems.length ? `
+          <button class="btn btn-success" onclick="App.exportReorderExcel()">${icon('download', 16)} ส่งออก Excel</button>
+          <button class="btn btn-primary" onclick="App.exportReorderPDF()">${icon('printer', 16)} ส่งออก PDF</button>
+          <button class="btn btn-ghost danger" onclick="App.clearReorderItems()">${icon('trash', 16)} ล้างทั้งหมด</button>
+        ` : ''}
+      </div>
+    </div>
+    ${reorderItems.length ? `
+      <table class="table">
+        <thead><tr><th>อุปกรณ์</th><th>หมวดหมู่</th><th class="num">จำนวน</th><th>หน่วย</th><th></th></tr></thead>
+        <tbody>${itemRows}</tbody>
+      </table>
+    ` : '<p class="empty-state">ยังไม่มีรายการต้องสั่งเพิ่ม</p>'}
+  </div>`;
+}
+
+App.onReorderCategoryChange = function () {
+  const raw = document.getElementById('reorder-category').value;
+  const cat = raw === 'other' ? '' : raw;
+  const itemSel = document.getElementById('reorder-item');
+  const prevVal = itemSel.value;
+  /* เก็บตัวเลือกเดิมทั้งหมดไว้ใน data attribute */
+  if (!itemSel._allOptions) {
+    itemSel._allOptions = Array.from(itemSel.options).map(o => ({ val: o.value, text: o.text, cat: o.dataset.cat || '' }));
   }
+  /* ล้าง options แล้วใส่เฉพาะที่ตรงหมวด */
+  itemSel.innerHTML = '<option value="">— เลือกวัสดุ —</option>';
+  itemSel._allOptions.forEach(o => {
+    if (!o.val) return;
+    /* เก็บตัวเลือก 'other' ไว้ท้ายสุดเสมอ */
+    if (o.val === 'other') return;
+    if (!cat || o.cat === cat) {
+      const opt = document.createElement('option');
+      opt.value = o.val;
+      opt.textContent = o.text;
+      opt.dataset.cat = o.cat;
+      itemSel.appendChild(opt);
+    }
+  });
+  /* เพิ่ม 'พิมพ์เอง' ต่อท้ายเสมอ */
+  const otherOpt = document.createElement('option');
+  otherOpt.value = 'other';
+  otherOpt.textContent = '... พิมพ์เอง';
+  itemSel.appendChild(otherOpt);
+  /* พยายามเลือกค่าเดิมถ้ายังมี */
+  if (prevVal && itemSel.querySelector(`option[value="${prevVal}"]`)) itemSel.value = prevVal;
+};
+
+App.findLowStock = function (threshold) {
+  const stock = Store.getStock();
+  const lowItems = stock.filter(s => s.qty >= 0 && s.qty <= threshold);
+  const resultDiv = document.getElementById('low-stock-result');
+  if (!lowItems.length) {
+    resultDiv.innerHTML = '<p class="muted small" style="padding:8px;background:#f8f8f8;border-radius:6px;">✅ ไม่มีวัสดุที่คงเหลือไม่เกิน ' + threshold + ' ชิ้น</p>';
+    resultDiv.classList.remove('hidden');
+    return;
+  }
+  const rows = lowItems.map(s => {
+    const status = s.qty <= 0 ? '🔴 หมด' : '🟡 ใกล้หมด';
+    return `<tr>
+      <td>${esc(s.name)}</td>
+      <td>${esc(s.category || '-')}</td>
+      <td class="num">${fmtQty(s.qty)} ${esc(s.unit)}</td>
+      <td>${status}</td>
+      <td><button class="btn btn-soft btn-sm" onclick="App.addLowStockToReorder('${s.id}')" title="เพิ่มรายการสั่งซื้อ">${icon('plus', 14)} สั่งซื้อ</button></td>
+    </tr>`;
+  }).join('');
+  resultDiv.innerHTML = `
+    <div style="padding:10px;background:#fff8e6;border:1px solid #f0d060;border-radius:8px;">
+      <p class="muted small" style="margin-bottom:6px;">📋 พบ ${lowItems.length} รายการที่คงเหลือไม่เกิน ${threshold}:</p>
+      <table class="table" style="margin:0;">
+        <thead><tr><th>อุปกรณ์</th><th>หมวดหมู่</th><th class="num">คงเหลือ</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:8px;">
+        <button class="btn btn-primary btn-sm" onclick="App.addAllLowStock([${lowItems.map(s => `'${s.id}'`).join(',')}])">${icon('plus', 14)} เพิ่มทั้งหมด (${lowItems.length} รายการ)</button>
+      </div>
+    </div>`;
+  resultDiv.classList.remove('hidden');
+};
+
+App.addLowStockToReorder = function (itemId) {
+  const item = Store.getItem(itemId);
+  if (!item) return;
+  Store.addReorderItem({
+    itemId,
+    itemName: item.name,
+    category: item.category || '',
+    qty: Math.max(item.minStock || 1, 1),
+    unit: item.unit || '',
+    note: ''
+  });
+  toast(`เพิ่ม ${item.name} แล้ว`);
+};
+
+App.addAllLowStock = function (ids) {
+  ids.forEach(id => {
+    const item = Store.getItem(id);
+    if (!item) return;
+    Store.addReorderItem({
+      itemId: id,
+      itemName: item.name,
+      category: item.category || '',
+      qty: Math.max(item.minStock || 1, 1),
+      unit: item.unit || '',
+      note: ''
+    });
+  });
+  toast(`เพิ่ม ${ids.length} รายการแล้ว`);
+  App.go('#/reorder');
+};
+
+App.addReorderItem = function (ev) {
+  ev.preventDefault();
+  const itemVal = document.getElementById('reorder-item').value;
+  const qty = Number(document.getElementById('reorder-qty').value);
+  const catRaw = document.getElementById('reorder-category').value;
+  const catVal = catRaw === 'other' ? (document.getElementById('reorder-category-custom').value || '').trim() : catRaw;
+  if (!itemVal) { toast('กรุณาเลือกวัสดุ', 'error'); return; }
+  if (!qty || qty <= 0) { toast('กรุณาระบุจำนวน', 'error'); return; }
+  let itemId = itemVal;
+  let itemName = '';
+  let itemUnit = '';
+  if (itemVal === 'other') {
+    itemName = (document.getElementById('reorder-item-custom').value || '').trim();
+    if (!itemName) { toast('กรุณาพิมพ์ชื่ออุปกรณ์', 'error'); return; }
+    itemId = 'custom_' + Date.now().toString(36);
+  } else {
+    const item = Store.getItem(itemId);
+    itemName = item ? item.name : '';
+    itemUnit = item ? item.unit : '';
+  }
+  Store.addReorderItem({
+    itemId,
+    itemName,
+    category: catVal || '',
+    qty,
+    unit: itemUnit,
+    note: ''
+  });
+  toast('เพิ่มรายการเรียบร้อย');
+  App.go('#/reorder');
+};
+
+App.deleteReorderItem = function (id) {
+  confirmAction('ลบรายการ', 'ยืนยันลบรายการนี้?', () => {
+    Store.deleteReorderItem(id);
+    toast('ลบรายการแล้ว');
+    App.go('#/reorder');
+  });
+};
+
+App.clearReorderItems = function () {
+  confirmAction('ล้างทั้งหมด', 'ยืนยันล้างรายการทั้งหมด?', () => {
+    Store.clearReorderItems();
+    toast('ล้างรายการแล้ว');
+    App.go('#/reorder');
+  });
+};
+
+App.exportReorderExcel = function () {
+  const reorderItems = Store.getReorderItems();
+  if (!reorderItems.length) { toast('ไม่มีรายการให้ส่งออก', 'error'); return; }
+  const rows = reorderItems.map((ri, i) => {
+    const item = Store.getItem(ri.itemId);
+    const displayName = ri.itemName || (item ? item.name : ri.itemId);
+    const cat = ri.category || (item ? item.category : '-');
+    return [i + 1, displayName, cat, fmtQty(ri.qty), ri.unit || (item ? item.unit : '')];
+  });
+  const totalQty = reorderItems.reduce((s, ri) => s + ri.qty, 0);
+  rows.push(['', 'รวม', '', fmtQty(totalQty), '']);
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-');
+  exportExcel(`รายการสั่งเพิ่ม_${stamp}.xlsx`, [
+    { label: 'ลำดับ' }, { label: 'อุปกรณ์' }, { label: 'หมวดหมู่' }, { label: 'จำนวน' }, { label: 'หน่วย' }
+  ], rows, 'รายการต้องสั่งเพิ่ม');
+};
+
+App.exportReorderPDF = function () {
+  const reorderItems = Store.getReorderItems();
+  if (!reorderItems.length) { toast('ไม่มีรายการให้ส่งออก', 'error'); return; }
+  const today = todayStr();
+  const rows = reorderItems.map((ri, i) => {
+    const item = Store.getItem(ri.itemId);
+    const displayName = ri.itemName || (item ? item.name : ri.itemId);
+    const cat = ri.category || (item ? item.category : '-');
+    return `<tr>
+      <td>${i + 1}</td>
+      <td>${esc(displayName)}</td>
+      <td>${esc(cat)}</td>
+      <td class="num">${fmtQty(ri.qty)}</td>
+      <td>${esc(ri.unit || (item ? item.unit : ''))}</td>
+    </tr>`;
+  }).join('');
+
+  const totalQty = reorderItems.reduce((s, ri) => s + ri.qty, 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="th"><head><meta charset="UTF-8">
+<title>รายการต้องสั่งเพิ่ม</title>
+<style>
+  body { font-family: 'Sarabun', 'Segoe UI', sans-serif; margin: 20mm; color: #222; }
+  h1 { text-align: center; font-size: 18pt; margin-bottom: 4px; }
+  .sub { text-align: center; color: #666; font-size: 10pt; margin-bottom: 20px; }
+  .doc-no { text-align: right; font-size: 10pt; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+  th, td { border: 1px solid #999; padding: 6px 10px; }
+  th { background: #f0f0f0; font-weight: 600; }
+  .num { text-align: right; }
+  tfoot td { font-weight: 600; background: #f8f8f8; }
+  .sig-area { margin-top: 40px; display: flex; justify-content: space-between; }
+  .sig-box { width: 30%; text-align: center; }
+  .sig-line { border-top: 1px solid #333; margin-top: 60px; padding-top: 4px; }
+  @media print { body { margin: 15mm; } }
+</style>
+</head><body>
+  <h1>รายการต้องสั่งเพิ่ม</h1>
+  <div class="sub">กลุ่มงานเทคโนโลยีสารสนเทศ — ระบบบริหารจัดการวัสดุและอุปกรณ์</div>
+  <div class="doc-no">วันที่พิมพ์: ${today}</div>
+  <table>
+    <thead><tr><th>ลำดับ</th><th>อุปกรณ์</th><th>หมวดหมู่</th><th class="num">จำนวน</th><th>หน่วย</th></tr></thead>
+    <tbody>${rows}</tbody>
+    <tfoot><tr><td colspan="3">รวม</td><td class="num">${fmtQty(totalQty)}</td><td></td></tr></tfoot>
+  </table>
+  <div class="sig-area">
+    <div class="sig-box"><div class="sig-line">ผู้จัดทำ</div></div>
+    <div class="sig-box"><div class="sig-line">ผู้ตรวจสอบ</div></div>
+    <div class="sig-box"><div class="sig-line">ผู้อนุมัติ</div></div>
+  </div>
+</body></html>`;
+
+  /* ลองเปิด popup ก่อน ถ้าไม่ได้ใช้ iframe สำรอง */
+  try {
+    const win = window.open('', '_blank', 'width=800,height=600');
+    if (win && !win.closed) {
+      win.document.write(html);
+      win.document.close();
+      setTimeout(() => win.print(), 500);
+      return;
+    }
+  } catch(e) {}
+  /* Fallback: ใช้ iframe สำหรับ Electron */
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:none;background:#fff';
+  iframe.srcdoc = html;
+  document.body.appendChild(iframe);
+  iframe.onload = () => { try { iframe.contentWindow.print(); } catch(e) {} };
+  setTimeout(() => { if (iframe.parentNode) iframe.remove(); }, 5000);
 };
 
 /* ============================================================
@@ -2061,17 +2748,18 @@ const Views = {
   dashboard: { title: 'หน้าหลัก', sub: 'ภาพรวมคลังวัสดุและอุปกรณ์', render: renderDashboard },
   receive: {
     title: 'รับเข้าวัสดุ', sub: 'บันทึกวัสดุที่รับเข้าคลัง',
-    render: () => renderTxForm('receive') + renderTxHistory('receive'),
+    render: (params) => renderTxForm('receive') + renderTxHistory('receive', { stockEdits: params && params.tab === 'stockedits' }),
     init: () => App.addTxRow('receive'),
   },
   issue: {
     title: 'จำหน่าย / เบิกจ่าย', sub: 'บันทึกการจำหน่ายหรือเบิกวัสดุออกจากคลัง',
-    render: () => renderTxForm('issue') + renderTxHistory('issue'),
+    render: (params) => renderTxForm('issue') + renderTxHistory('issue', { stockEdits: params && params.tab === 'stockedits' }),
     init: () => App.addTxRow('issue'),
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
   barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
+  reorder: { title: 'รายการต้องสั่งเพิ่ม', sub: 'จัดรายการวัสดุที่ต้องสั่งซื้อเพิ่ม', render: renderReorder },
   users: { title: 'ผู้ใช้งาน', sub: 'จัดการบัญชีและสิทธิ์การใช้งาน', render: renderUsers },
   settings: { title: 'ตั้งค่า', sub: 'ตั้งค่าระบบแจ้งเตือนและการเชื่อมต่อ', render: renderSettings },
 };

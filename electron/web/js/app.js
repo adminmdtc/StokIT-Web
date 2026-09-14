@@ -51,7 +51,7 @@ function route() {
 
   /* เรนเดอร์เนื้อหา */
   const content = document.getElementById('content');
-  content.innerHTML = view.render();
+  content.innerHTML = view.render(queryParams);
   if (view.init) view.init(queryParams);
 }
 
@@ -216,9 +216,9 @@ function updateSyncIndicator(status, message) {
       }
     }
     if (status === 'connected') {
-      showSyncNotification('✅ IT Stock', 'เชื่อมต่อ Firebase สำเร็จ — ข้อมูลซิงค์แล้ว', 'success');
+      showSyncNotification('✅ IT Stock', 'เชื่อมต่อสำเร็จ — ข้อมูลซิงค์แล้ว', 'success');
     } else if (status === 'error') {
-      showSyncNotification('❌ IT Stock', 'เชื่อมต่อ Firebase ล้มเหลว — ลองใหม่อีกครั้ง', 'error');
+      showSyncNotification('❌ IT Stock', 'เชื่อมต่อล้มเหลว — ลองใหม่อีกครั้ง', 'error');
     }
   }
   _prevSyncStatus = status;
@@ -248,51 +248,30 @@ function updateSyncIndicator(status, message) {
   }
 }
 
-/* ============================================================
-   Firebase Initialization
-   ============================================================ */
-async function initFirebase() {
-  // ลงทะเบียน sync indicator
-  FirebaseDB.onStatusChange(updateSyncIndicator);
-
-  // แสดงสถานะเริ่มต้น
-  updateSyncIndicator('offline', 'ไม่ได้เชื่อมต่อ');
-
-  // โหลด config
-  const config = FirebaseDB.loadConfig();
-  if (config && config.apiKey) {
-    // เชื่อมต่อ Firebase
-    const connected = await FirebaseDB.connect();
-    if (connected) {
-      console.log('Firebase connected on startup');
-      
-      // ซิงค์ข้อมูลจาก Firebase (พร้อม conflict detection)
-      const synced = await FirebaseDB.syncFromFirebase();
-      if (synced) {
-        console.log('Initial sync from Firebase completed');
-        Store._saveSyncBase();
-        route(); // รีเฟรช UI
-      }
-      
-      // ฟังการเปลี่ยนแปลงแบบ real-time
-      FirebaseDB.onChanges((data) => {
-        console.log('Firebase real-time update received, refreshing UI...');
-        // รีเฟรชหน้าปัจจุบัน
-        route();
-      });
-    }
-  }
-}
+/* Firebase init removed */
 
 document.addEventListener('DOMContentLoaded', async () => {
-  Store.load();
+  // ตรวจสอบ import จาก QR Code URL ก่อน
+  if (typeof App.checkImportFromURL === 'function') {
+    const imported = await App.checkImportFromURL();
+    if (imported) return; // import สำเร็จ = reload แล้ว
+  }
+
+  await Store.load();
   bindLogin();
   bindSidebar();
   window.addEventListener('hashchange', route);
   route();
   
-  // เริ่มต้น Firebase
-  await initFirebase();
+  /* Auto-focus username input on login page */
+  setTimeout(() => {
+    const loginInput = document.getElementById('login-username');
+    if (loginInput && !document.getElementById('login-view').classList.contains('hidden')) {
+      loginInput.focus();
+    }
+  }, 100);
+  
+  // (sync removed)
 
   // เปิดใช้งานเสียงหลัง init เสร็จ (ป้องกันเสียงครั้งแรก)
   setTimeout(() => { _syncSoundReady = true; }, 2000);
@@ -300,3 +279,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   // ขอ permission สำหรับ browser notification
   if (_syncNotifyEnabled) requestNotificationPermission();
 });
+
+/* --- รีเซ็ตรหัสผ่าน Admin001 --- */
+App.resetAdminPassword = function () {
+  const empty = !Store.db || !Store.db.items || !Store.db.items.length;
+  if (empty) {
+    if (!confirm('ข้อมูลว่างเปล่า — ต้องการกู้คืนข้อมูลตัวอย่างเริ่มต้นไหม?\n(จะสร้างข้อมูลตัวอย่าง + ผู้ใช้ Admin001)')) return;
+    localStorage.removeItem('it_stock_db_v5');
+    location.reload();
+    return;
+  }
+  if (!confirm('รีเซ็ตรหัสผ่าน Admin001 เป็น "14197" ใช่หรือไม่?')) return;
+  const h = (function(s) { let h = 5381; for (let i = 0; i < String(s).length; i++) h = ((h << 5) + h + String(s).charCodeAt(i)) >>> 0; return 'h' + h.toString(16); })('14197');
+  let admin = Store.users().find(u => u.username === 'Admin001');
+  if (admin) { admin.password = h; }
+  else if (Store.db) {
+    if (!Store.db.users) Store.db.users = [];
+    Store.db.users.push({ id: 'u1', username: 'Admin001', password: h, name: 'ผู้ดูแลระบบ', role: 'admin' });
+  }
+  Store.save();
+  location.reload();
+};

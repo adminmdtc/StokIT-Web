@@ -71,7 +71,7 @@ const Telegram = {
       ``,
       `📄 เลขที่: <code>${escHtml(tx.no)}</code>`,
       `📅 วันที่: ${tx.date}`,
-      `🏢 ผู้รับ: ${escHtml(tx.party)}`,
+      `🏢 ผู้รับ: ${escHtml(tx.partyRx || tx.party)}`,
       `👤 ผู้บันทึก: ${escHtml(tx.byName)}`,
       ``,
       `<b>รายการ:</b>`,
