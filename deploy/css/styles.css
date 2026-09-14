@@ -273,7 +273,6 @@ select.input option { padding: 10px 14px; font-size: 14px; }
               radial-gradient(ellipse at 70% 80%, rgba(14, 165, 233, 0.3) 0%, transparent 50%),
               radial-gradient(ellipse at 50% 50%, rgba(139, 92, 246, 0.2) 0%, transparent 70%);
   animation: aurora 20s ease-in-out infinite;
-  pointer-events: none;
 }
 @keyframes aurora {
   0%, 100% { transform: translate(0, 0) rotate(0deg); }
@@ -539,6 +538,13 @@ select.input option { padding: 10px 14px; font-size: 14px; }
   background: radial-gradient(circle, rgba(99, 102, 241, 0.1) 0%, transparent 70%);
   transform: translate(30%, -30%);
 }
+.stat-card.stat-link { text-decoration: none; color: inherit; cursor: pointer; }
+.stat-card.stat-link:hover .stat-label { color: var(--primary-dark); }
+.stat-card.stat-link::after {
+  content: '→'; position: absolute; right: 18px; top: 50%; transform: translateY(-50%);
+  font-size: 20px; color: var(--muted); opacity: 0; transition: all var(--transition-fast);
+}
+.stat-card.stat-link:hover::after { opacity: 0.7; right: 14px; }
 .stat-card:hover {
   transform: translateY(-4px);
   box-shadow: var(--shadow-lg);
@@ -660,6 +666,8 @@ table.list .actions { text-align: right; white-space: nowrap; }
   text-decoration: none; white-space: nowrap;
   transition: all var(--transition-fast);
 }
+.tx-tab { font-family: inherit; border: none; background: transparent; cursor: pointer; }
+text.tx-tab, button.tx-tab { line-height: 1; }
 .tx-tab:hover { color: var(--text); background: rgba(255, 255, 255, 0.7); }
 .tx-tab.active {
   color: #fff; background: var(--gradient-primary);

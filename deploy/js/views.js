@@ -13,6 +13,7 @@ const App = {};
 /* ---------- สถานะของหน้ารายงาน ---------- */
 window.REP = {
   type: 'stock',
+  tab: 'normal',
   from: new Date().toISOString().slice(0, 7) + '-01',
   to: todayStr(),
 };
@@ -108,10 +109,10 @@ function renderDashboard() {
   return `
   ${banner}
   <div class="stat-grid">
-    <div class="card stat-card"><div class="icon-bubble ib-indigo">${icon('box', 22)}</div><div><div class="stat-num">${stock.length}</div><div class="stat-label">รายการวัสดุ</div></div></div>
-    <div class="card stat-card"><div class="icon-bubble ib-sky">${icon('receive', 22)}</div><div><div class="stat-num">${fmtQty(rcvMonth)}</div><div class="stat-label">รับเข้าเดือนนี้ (ชิ้น)</div></div></div>
-    <div class="card stat-card"><div class="icon-bubble ib-amber">${icon('issue', 22)}</div><div><div class="stat-num">${fmtQty(issMonth)}</div><div class="stat-label">จำหน่ายเดือนนี้ (ชิ้น)</div></div></div>
-    <div class="card stat-card"><div class="icon-bubble ib-rose">${icon('alert', 22)}</div><div><div class="stat-num">${lowCount}</div><div class="stat-label">วัสดุใกล้หมด / หมด</div></div></div>
+    <a class="card stat-card stat-link" href="#/stock"><div class="icon-bubble ib-indigo">${icon('box', 22)}</div><div><div class="stat-num">${stock.length}</div><div class="stat-label">รายการวัสดุ</div></div></a>
+    <a class="card stat-card stat-link" href="#/receive"><div class="icon-bubble ib-sky">${icon('receive', 22)}</div><div><div class="stat-num">${fmtQty(rcvMonth)}</div><div class="stat-label">รับเข้าเดือนนี้ (ชิ้น)</div></div></a>
+    <a class="card stat-card stat-link" href="#/issue"><div class="icon-bubble ib-amber">${icon('issue', 22)}</div><div><div class="stat-num">${fmtQty(issMonth)}</div><div class="stat-label">จำหน่ายเดือนนี้ (ชิ้น)</div></div></a>
+    <a class="card stat-card stat-link" href="#/stock?filter=low"><div class="icon-bubble ib-rose">${icon('alert', 22)}</div><div><div class="stat-num">${lowCount}</div><div class="stat-label">วัสดุใกล้หมด / หมด</div></div></a>
   </div>
 
   <div class="dash-grid">
@@ -1004,10 +1005,12 @@ App.filterStock = function (params) {
   const q = ($('#st-search').value || '').toLowerCase();
   const cat = $('#st-cat').value;
   const groupParam = params && params.group ? params.group : '';
+  const lowOnly = params && params.filter === 'low';
   const stock = Store.getStock().filter(s =>
     (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)) &&
     (!cat || s.category === cat) &&
-    (!groupParam || s.group === groupParam)
+    (!groupParam || s.group === groupParam) &&
+    (!lowOnly || s.status !== 'ok')
   );
   const body = $('#st-body');
   if (!body) return;
@@ -1209,10 +1212,15 @@ App.delItem = function (id) {
    รายงาน
    ============================================================ */
 function renderReports() {
+  const se = REP.tab === 'stockedits';
   return `
   <div class="card">
     <div class="card-head">
       <div><h3>ออกรายงาน</h3><p class="muted small">เลือกรายงาน กำหนดช่วงเวลา แล้วส่งออกเป็น Excel หรือ PDF</p></div>
+    </div>
+    <div class="tx-tabs" style="margin-bottom:14px">
+      <button type="button" class="tx-tab${se ? '' : ' active'}" onclick="App.setReportTab('normal')">${icon('chart', 15)} <span>รายการปกติ</span></button>
+      <button type="button" class="tx-tab${se ? ' active' : ''}" onclick="App.setReportTab('stockedits')">${icon('edit', 15)} <span>แก้ไขสต๊อก</span></button>
     </div>
     <div class="toolbar">
       <div class="seg" id="rep-seg">
@@ -1235,6 +1243,16 @@ function renderReports() {
     <div class="rep-preview" id="rep-preview"></div>
   </div>`;
 }
+
+App.setReportTab = function (tab) {
+  REP.tab = tab === 'stockedits' ? 'stockedits' : 'normal';
+  if (REP.tab === 'stockedits' && REP.type === 'stock') REP.type = 'receive';
+  renderReportPreview();
+  const seg = $('#rep-seg');
+  if (seg) seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.getAttribute('onclick').includes("'" + REP.type + "'")));
+  const range = $('#rep-range');
+  if (range) range.classList.toggle('hidden', REP.type === 'stock');
+};
 
 App.setReport = function (type) {
   REP.type = type;
@@ -1274,10 +1292,11 @@ function reportData(type) {
     };
   }
   const txs = Store.transactions().filter(t =>
-    t.type === type && (!REP.from || t.date >= REP.from) && (!REP.to || t.date <= REP.to)
+    t.type === type && isStockEditTx(t) === (REP.tab === 'stockedits') && (!REP.from || t.date >= REP.from) && (!REP.to || t.date <= REP.to)
   );
   const isRcv = type === 'receive';
   const label = isRcv ? 'รับเข้า' : 'จำหน่าย';
+  const labelTxt = REP.tab === 'stockedits' ? `${label}วัสดุ (แก้ไขสต๊อก)` : `${label}วัสดุ`;
   const cols = [
     { label: 'ลำดับ', align: 'right' }, { label: 'เลขที่เอกสาร' }, { label: 'วันที่' },
     { label: 'รหัส' }, { label: 'รายการวัสดุ' }, { label: 'จำนวน', align: 'right' }, { label: 'หน่วย' }, { label: 'หมายเหตุ' },
@@ -1293,7 +1312,7 @@ function reportData(type) {
   }));
   const rangeTxt = `${REP.from ? 'ตั้งแต่วันที่ ' + fmtDate(REP.from) : 'ทั้งหมด'}${REP.to ? ' ถึง ' + fmtDate(REP.to) : ''}`;
   return {
-    title: `รายงาน${label}วัสดุ`,
+    title: `รายงาน${labelTxt}`,
     subtitle: `${rangeTxt} — ${txs.length} เอกสาร / ${idx} รายการ`,
     cols, rows,
     totalsRow: ['', '', '', '', 'รวม', fmtQty(totQ), '', ''],
