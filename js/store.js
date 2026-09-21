@@ -300,7 +300,7 @@ const Store = {
       });
     }
     this.save();
-    this._mysqlAdd('tx', this.db.transactions[0]);
+    this._cloudAdd('tx', this.db.transactions[0]);
   },
 
   addItem(data) {
@@ -310,7 +310,7 @@ const Store = {
     this._stamp(it);
     this.db.items.push(it);
     this.save();
-    this._mysqlAdd('item', it);
+    this._cloudAdd('item', it);
     return it;
   },
   updateItem(id, data) {
@@ -324,7 +324,7 @@ const Store = {
   },
   deleteItem(id) { this.db.items = this.db.items.filter(i => i.id !== id); this.save(); this._mysqlDelete('item', id); },
 
-  addTransaction(tx) { this._stamp(tx); this.db.transactions.unshift(tx); this.save(); this._mysqlAdd('tx', tx); return tx; },
+  addTransaction(tx) { this._stamp(tx); this.db.transactions.unshift(tx); this.save();    this._cloudAdd('tx', tx); return tx; },
   deleteTransaction(id) { this.db.transactions = this.db.transactions.filter(t => t.id !== id); this.save(); this._mysqlDelete('tx', id); },
 
   /* ลบเฉพาะรายการแก้ไขสต็อก (party = 'แก้ไขสต็อก' หรือ 'แก้ไขจำนวนตรง') */
@@ -341,7 +341,7 @@ const Store = {
     this._stamp(u);
     this.db.users.push(u);
     this.save();
-    this._mysqlAdd('user', u);
+    this._cloudAdd('user', u);
     return u;
   },
   updateUser(id, data) {
@@ -357,10 +357,17 @@ const Store = {
   deleteUser(id) { this.db.users = this.db.users.filter(x => x.id !== id); this.save(); this._mysqlDelete('user', id); },
   findUser(username) { return this.db.users.find(u => u.username.toLowerCase() === String(username).toLowerCase()); },
 
-  /* --- MySQL Mode --- */
-  _isMySQL() { return typeof MySQLBackend !== 'undefined' && MySQLBackend.enabled; },
-  async syncFromMySQL() {
-    if (!this._isMySQL()) return false;
+  /* Cloud backend — เลือกได้ระหว่าง MySQL (ผ่าน server) หรือ Supabase (คลาวด์โดยตรง) */
+  _cloudBackend() {
+    if (typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) return SupabaseBackend;
+    return null; /* MySQL ตรวจที่ _isMySQL() แยกอยู่แล้ว */
+  },
+  _isMySQL() { return typeof MySQLBackend !== 'undefined' && MySQLBackend.enabled && this._cloudBackend() === null; },
+  _isCloud() { return !!(typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) || this._isMySQL(); },
+
+  /* MySQL Mode — force=true จะดึงข้อมูลแม้ยังไม่เปิดใช้งาน (ใช้หลังบันทึก config) */
+  async syncFromMySQL(force) {
+    if (!force && !this._isMySQL()) return false;
     try {
       const data = await MySQLBackend.syncAll();
       /* sync เฉพาะตารางที่มีข้อมูล — ป้องกันเขียนทับด้วย array ว่าง */
@@ -372,6 +379,33 @@ const Store = {
       return true;
     } catch (e) { console.error('MySQL sync error:', e); return false; }
   },
+
+  /* Supabase Mode — ดึงข้อมูลจากคลาวด์มาแทนที่ในเครื่อง */
+  async syncFromSupabase(force) {
+    if (!force && !(typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled)) return false;
+    try {
+      const data = await SupabaseBackend.pullAll();
+      const hasAny = (data.items && data.items.length) || (data.transactions && data.transactions.length);
+      if (!hasAny) return { ok: false, empty: true };
+      if (data.items && data.items.length) this.db.items = data.items;
+      if (data.transactions && data.transactions.length) this.db.transactions = data.transactions.map(t => ({ ...t, items: typeof t.items === 'string' ? JSON.parse(t.items) : t.items }));
+      if (data.users && data.users.length) this.db.users = data.users;
+      if (data.reorderItems && data.reorderItems.length) this.db.reorderItems = data.reorderItems;
+      if (data.seq && data.seq.item) this.db.seq = Object.assign({}, this.db.seq, data.seq);
+      this.save();
+      return { ok: true };
+    } catch (e) { console.error('Supabase sync error:', e); throw e; }
+  },
+
+  /* Supabase Mode — อัปโหลดข้อมูลทั้งหมดในเครื่องขึ้นคลาวด์ */
+  async syncToSupabase() {
+    if (typeof SupabaseBackend === 'undefined' || !SupabaseBackend.url || !SupabaseBackend.key) return false;
+    try {
+      const n = await SupabaseBackend.pushAll(this.db);
+      return n;
+    } catch (e) { console.error('Supabase push error:', e); throw e; }
+  },
+
   async syncToMySQL() {
     if (!this._isMySQL()) return false;
     try {
@@ -383,6 +417,22 @@ const Store = {
       return count;
     } catch (e) { console.error('MySQL push error:', e); return false; }
   },
+  /* ส่งขึ้นคลาวด์ตาม backend ที่เปิดอยู่ (Supabase มาก่อน ถ้าเปิด) */
+  async _cloudAdd(type, data) {
+    if (typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) {
+      try { return await this._supaAdd(type, data); } catch (e) { console.error('Supabase add error:', e); }
+    }
+    return this._mysqlAdd(type, data);
+  },
+  async _supaAdd(type, data) {
+    if (typeof SupabaseBackend === 'undefined' || !SupabaseBackend.enabled) return;
+    try {
+      if (type === 'item') await SupabaseBackend.addItem(data);
+      else if (type === 'tx') await SupabaseBackend.addTransaction(data);
+      else if (type === 'user') await SupabaseBackend.addUser(data);
+      else if (type === 'reorder') await SupabaseBackend.addReorder(data);
+    } catch (e) { console.error('Supabase add error:', e); }
+  },
   async _mysqlAdd(type, data) {
     if (!this._isMySQL()) return;
     try {
@@ -393,6 +443,13 @@ const Store = {
     } catch (e) { console.error('MySQL add error:', e); }
   },
   async _mysqlUpdate(type, id, data) {
+    if (typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) {
+      try {
+        if (type === 'item') await SupabaseBackend.updateItem(id, data);
+        else if (type === 'user') await SupabaseBackend.updateUser(id, data);
+        return;
+      } catch (e) { console.error('Supabase update error:', e); return; }
+    }
     if (!this._isMySQL()) return;
     try {
       if (type === 'item') await MySQLBackend.updateItem(id, data);
@@ -400,6 +457,15 @@ const Store = {
     } catch (e) { console.error('MySQL update error:', e); }
   },
   async _mysqlDelete(type, id) {
+    if (typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) {
+      try {
+        if (type === 'item') await SupabaseBackend.deleteItem(id);
+        else if (type === 'tx') await SupabaseBackend.deleteTransaction(id);
+        else if (type === 'user') await SupabaseBackend.deleteUser(id);
+        else if (type === 'reorder') await SupabaseBackend.deleteReorder(id);
+        return;
+      } catch (e) { console.error('Supabase delete error:', e); return; }
+    }
     if (!this._isMySQL()) return;
     try {
       if (type === 'item') await MySQLBackend.deleteItem(id);
@@ -499,7 +565,7 @@ const Store = {
     this.save();
     this._mysqlDelete('reorder', id);
   },
-  clearReorderItems() { this.db.reorderItems = []; this.save(); if (this._isMySQL()) MySQLBackend.clearReorder().catch(e => console.error(e)); },
+  clearReorderItems() { this.db.reorderItems = []; this.save(); if (this._isMySQL()) MySQLBackend.clearReorder().catch(e => console.error(e)); if (typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled) SupabaseBackend.clearReorderAll().catch(e => console.error(e)); },
 };
 
 /* ---------- ระบบล็อกอิน / เซสชัน ---------- */

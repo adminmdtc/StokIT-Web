@@ -20,5 +20,21 @@ Thumbs.db
 # Temporary
 *.tmp
 
+# MySQL config saved from the app (contains DB password)
+server/db-config.json
+
+# Dev/test scratch files
+temp_*
+raw-v1.txt
+temp_mdb/
+server-dev.py
+server-dbtest.log
+*.md_
+test-backup.json
+two-windows-test.html
+server-dbtest.log
+server-nodbtest.log
+server-nodetest.log
+
 # Electron node_modules
 electron/node_modules/

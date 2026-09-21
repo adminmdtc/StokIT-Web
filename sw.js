@@ -1,16 +1,18 @@
 'use strict';
 
-const CACHE_NAME = 'it-stock-v2';
+const CACHE_NAME = 'it-stock-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/styles.css',
   '/js/app.js',
-  '/js/firebase.js',
   '/js/store.js',
   '/js/ui.js',
   '/js/views.js',
   '/js/conflict.js',
+  '/js/mysql.js',
+  '/js/supabase.js',
+  '/js/liveSync.js',
   '/js/export.js',
   '/js/telegram.js',
   '/js/missions.js',
@@ -22,8 +24,6 @@ const STATIC_ASSETS = [
 ];
 
 const CDN_ASSETS = [
-  'https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js',
-  'https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js',
   'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
   'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js',
   'https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js',

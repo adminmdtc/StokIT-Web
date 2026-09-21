@@ -2,10 +2,10 @@
 
 const express = require('express');
 const cors = require('cors');
-const { query, queryOne } = require('./db');
+const { query, queryOne, getConfig, setConfig, testConfig, ensureSchema } = require('./db');
 
 const app = express();
-const PORT = process.env.PORT || 3333;
+const PORT = parseInt(process.env.PORT, 10) || 3333;
 
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
@@ -19,6 +19,68 @@ app.get('/api/health', async (req, res) => {
     res.json({ ok: true, db: 'mysql' });
   } catch (e) {
     res.status(500).json({ ok: false, error: e.message });
+  }
+});
+
+// ============================================================
+// Database config (หน้าต่าง "ตั้งค่าฐานข้อมูล")
+// ============================================================
+
+/* แปลง error ของ MySQL เป็นข้อความที่อ่านง่าย */
+function dbErr(e) {
+  const code = e.code || '';
+  const map = {
+    ECONNREFUSED: 'เชื่อมต่อ MySQL ไม่ได้ — ตรวจสอบว่า MySQL Server รันอยู่ที่ host/พอร์ตนี้',
+    ER_ACCESS_DENIED_ERROR: 'ชื่อผู้ใช้หรือรหัสผ่าน MySQL ไม่ถูกต้อง',
+    ER_BAD_DB_ERROR: 'ไม่พบฐานข้อมูลนี้ — กด "สร้างฐานข้อมูลใหม่" ก่อน',
+    ETIMEDOUT: 'หมดเวลาเชื่อมต่อ — ตรวจสอบไฟร์วอลล์/IP',
+    ENOTFOUND: 'ไม่พบ host ที่ระบุ',
+  };
+  if (map[code]) return code + ': ' + map[code];
+  return code ? code + ': ' + (e.message || '') : (e.message || 'เชื่อมต่อไม่สำเร็จ');
+}
+
+/* GET — ค่าปัจจุบัน (ไม่ส่งรหัสผ่านกลับ) */
+app.get('/api/db/config', (req, res) => {
+  res.json(Object.assign(getConfig(), { running: true }));
+});
+
+/* POST — ทดสอบค่าที่กรอก (ยังไม่บันทึก) */
+app.post('/api/db/test', async (req, res) => {
+  try {
+    const c = await testConfig(req.body || {});
+    res.json({ ok: true, host: c.host, database: c.database });
+  } catch (e) {
+    res.json({ ok: false, error: dbErr(e) });
+  }
+});
+
+/* POST — บันทึก config ใหม่ ใช้ได้ทันที ไม่ต้องรีสตาร์ท server */
+app.post('/api/db/config', async (req, res) => {
+  try {
+    /* ถ้ากรอกรหัสผ่านว่างและเดิมมีรหัสผ่าน = คงรหัสผ่านเดิมไว้ */
+    const body = Object.assign({}, req.body || {});
+    if ((body.password === '' || body.password === undefined) && !body.keepPasswordSet) {
+      delete body.password; /* ใช้รหัสผ่านที่บันทึกไว้แล้ว */
+    }
+    delete body.keepPasswordSet;
+    const cfg = setConfig(body);
+    /* ยืนยันว่าใช้งานได้จริง */
+    await query('SELECT 1');
+    res.json({ ok: true, host: cfg.host, database: cfg.database });
+  } catch (e) {
+    res.json({ ok: false, error: dbErr(e) });
+  }
+});
+
+/* POST — สร้าง database + ตารางทั้งหมด (ปุ่ม "สร้างฐานข้อมูลใหม่") */
+app.post('/api/db/setup', async (req, res) => {
+  try {
+    await ensureSchema();
+    await query('SELECT 1');
+    res.json({ ok: true });
+  } catch (e) {
+    res.json({ ok: false, error: dbErr(e) });
   }
 });
 
