@@ -2603,8 +2603,9 @@ function renderBarcode() {
       <div class="field">
         <label>ขนาดบาร์โค้ด</label>
         <select id="barcode-size" class="input" onchange="App.updateBarcodePreview()">
+          <option value="sticker8050" selected>สติกเกอร์ (กว้าง 80 × ยาว 50 มม.)</option>
           <option value="small">เล็ก (40x20mm)</option>
-          <option value="medium" selected>กลาง (60x30mm)</option>
+          <option value="medium">กลาง (60x30mm)</option>
           <option value="large">ใหญ่ (80x40mm)</option>
           <option value="xlarge">ใหญ่มาก (100x50mm)</option>
         </select>
@@ -2742,12 +2743,13 @@ App.previewBarcodes = function() {
   const layout = document.getElementById('barcode-layout').value;
   
   const sizeMap = {
+    sticker8050: { width: 2, height: 45, fontSize: 12, css: 'width: 80mm; height: 50mm;', qrSize: 55 },
     small: { width: 1, height: 40, fontSize: 10, qrSize: 60 },
     medium: { width: 2, height: 60, fontSize: 12, qrSize: 80 },
     large: { width: 2, height: 80, fontSize: 14, qrSize: 100 },
     xlarge: { width: 3, height: 100, fontSize: 16, qrSize: 120 },
   };
-  const s = sizeMap[size] || sizeMap.medium;
+  const s = sizeMap[size] || sizeMap.sticker8050;
   
   const previewArea = document.getElementById('barcode-preview-area');
   const previewContent = document.getElementById('barcode-preview-content');
@@ -2763,10 +2765,10 @@ App.previewBarcodes = function() {
       const qrHtml = layout !== 'barcode-only' ? `<div id="qr-${item.id}-${i}" style="margin-top: 5px;"></div>` : '';
       
       html += `
-        <div class="barcode-label" style="border: 1px solid #ddd; padding: 10px; text-align: center; background: white; min-width: 120px;">
+        <div class="barcode-label" style="border: 1px dashed #bbb; padding: 6px; text-align: center; background: white; box-sizing: border-box; overflow: hidden; ${s.css || 'min-width: 120px;'}">
           ${barcodeHtml}
           ${qrHtml}
-          <div style="font-size: ${s.fontSize}px; margin-top: 5px; font-weight: bold;">${esc(item.name)}</div>
+          <div style="font-size: ${s.fontSize}px; margin-top: 4px; font-weight: bold;">${esc(item.name)}</div>
           <div style="font-size: ${s.fontSize - 2}px; color: #666;">${esc(item.code)}</div>
         </div>`;
     }
@@ -2835,12 +2837,13 @@ App.printBarcodes = function() {
   const layout = document.getElementById('barcode-layout').value;
   
   const sizeMap = {
+    sticker8050: { width: 2, height: 45, fontSize: 11, css: 'width: 80mm; height: 50mm;', qrSize: 55 },
     small: { width: 1, height: 40, fontSize: 10, css: 'width: 40mm; height: 25mm;', qrSize: 50 },
     medium: { width: 2, height: 60, fontSize: 12, css: 'width: 60mm; height: 35mm;', qrSize: 60 },
     large: { width: 2, height: 80, fontSize: 14, css: 'width: 80mm; height: 45mm;', qrSize: 70 },
     xlarge: { width: 3, height: 100, fontSize: 16, css: 'width: 100mm; height: 55mm;', qrSize: 80 },
   };
-  const s = sizeMap[size] || sizeMap.medium;
+  const s = sizeMap[size] || sizeMap.sticker8050;
   
   // Pre-generate QR codes as data URLs
   const qrDataUrls = {};
@@ -2862,13 +2865,13 @@ App.printBarcodes = function() {
   let printContent = '<html><head><title>พิมพ์บาร์โค้ด</title>';
   printContent += '<style>';
   printContent += 'body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }';
-  printContent += '.barcode-container { display: flex; flex-wrap: wrap; gap: 5mm; }';
-  printContent += '.barcode-item { border: 1px solid #ccc; padding: 5mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; }';
+  printContent += '.barcode-container { display: flex; flex-wrap: wrap; gap: 2mm; }';
+  printContent += '.barcode-item { border: 1px dashed #bbb; padding: 2mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; }';
   printContent += '.barcode-item svg { max-width: 100%; }';
   printContent += '.barcode-name { font-size: 10pt; font-weight: bold; margin-top: 2mm; }';
   printContent += '.barcode-code { font-size: 8pt; color: #666; }';
   printContent += '.qr-image { margin-top: 2mm; }';
-  printContent += '@media print { .no-print { display: none; } }';
+  printContent += '@media print { .no-print { display: none; } @page { size: A4; margin: 5mm; } }';
   printContent += '</style></head><body>';
   printContent += '<div class="no-print" style="text-align: center; margin-bottom: 10px;">';
   printContent += '<button onclick="window.print()">พิมพ์</button>';
