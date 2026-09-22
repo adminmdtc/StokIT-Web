@@ -59,16 +59,15 @@ const SupabaseBackend = {
   async _rest(path, opts = {}) {
     if (!this.url || !this.key) throw new Error('กรุณากรอก URL และ anon key ของ Supabase ก่อน');
     /* ส่ง key ทั้ง header และ query param (กันโปรซีกลาง/แอนติไวรัสตัด header ทิ้ง) */
-    const sep = path.includes('?') ? '&' : '?';
     let resp;
     try {
-      resp = await fetch(this.url + path + sep + 'apikey=' + encodeURIComponent(this.key), Object.assign({
+      resp = await fetch(this.url + path + sep + 'apikey=' + encodeURIComponent(this.key), Object.assign({}, opts, {
         headers: Object.assign({
           'apikey': this.key,
           'Authorization': 'Bearer ' + this.key,
           'Content-Type': 'application/json',
         }, opts.headers || {}),
-      }, opts));
+      }));
     } catch (e) {
       throw new Error('ติดต่อ Supabase ไม่ได้ — ตรวจสอบ URL project (ต้องขึ้นต้น https://xxxx.supabase.co)');
     }
