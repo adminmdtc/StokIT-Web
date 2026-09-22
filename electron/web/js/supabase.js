@@ -59,6 +59,7 @@ const SupabaseBackend = {
   async _rest(path, opts = {}) {
     if (!this.url || !this.key) throw new Error('กรุณากรอก URL และ anon key ของ Supabase ก่อน');
     /* ส่ง key ทั้ง header และ query param (กันโปรซีกลาง/แอนติไวรัสตัด header ทิ้ง) */
+    const sep = path.includes('?') ? '&' : '?';
     let resp;
     try {
       resp = await fetch(this.url + path + sep + 'apikey=' + encodeURIComponent(this.key), Object.assign({}, opts, {
