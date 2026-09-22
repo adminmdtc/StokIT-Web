@@ -2420,6 +2420,7 @@ function hostFromUrl(url) {
 App.exportBackup = function () {
   const db = Store.db;
   if (!db) { toast('ไม่มีข้อมูลให้ backup', 'error'); return; }
+  if (typeof Store.normalizeIds === 'function') Store.normalizeIds(); /* ให้ไฟล์ backup มี id ครบทุกรายการ */
   const backup = JSON.stringify(db, null, 2);
   const blob = new Blob([backup], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -2450,7 +2451,10 @@ App.importBackup = function (input) {
       if (!Store.db.seq) Store.db.seq = { item: data.items.length, receive: 0, issue: 0 };
       Store.db._lastSync = Date.now();
       Store.db._lastUpdate = new Date().toISOString();
+      /* ประจำ id ให้รายการที่ยังไม่มี id (backup เก่า) — ไม่งั้นตอนอัปโหลดคลาวด์แถวพวกนี้หาย ยอดคงเหลือจะเพิ่มผิด */
+      const fixedIds = (typeof Store.normalizeIds === 'function') ? Store.normalizeIds() : 0;
       await Store.save();
+      if (fixedIds > 0) toast(`ปรับปรุงข้อมูลเก่า: ใส่ id ให้ ${fixedIds} รายการที่ขาด (ยอดคงเหลือจะตรงกับไฟล์ backup)`, 'info');
 
       /* เปิดโหมด Supabase อยู่ → เขียนทับคลาวด์ทั้งชุด + ขยับ rev ให้เครื่องอื่นรู้ว่าต้อง replace เต็ม */
       if (cloudOn) {

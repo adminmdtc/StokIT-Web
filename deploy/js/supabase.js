@@ -146,9 +146,14 @@ const SupabaseBackend = {
   },
 
   _rows(list) {
-    /* ตัดแถวที่ไม่มี id ออก (ไม่มี primary key ซิงค์ไม่ได้) — กัน error "All object keys must match" */
-    return (list || []).filter(x => x && x.id !== undefined && x.id !== null && x.id !== '')
-      .map(x => ({ id: String(x.id), data: x, updated_at: x.updatedAt || Date.now() }));
+    /* ประจำ id ให้แถวที่ยังไม่มี (รายการเก่าจาก backup) — ห้ามตัดทิ้ง เพราะแถวที่หาย = ยอดคงเหลือเพี้ยน */
+    const mk = (typeof uid === 'function')
+      ? uid
+      : (p => (p || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
+    return (list || []).filter(x => x && typeof x === 'object').map(x => {
+      if (!x.id) x.id = mk('id');
+      return { id: String(x.id), data: x, updated_at: x.updatedAt || Date.now() };
+    });
   },
 
   async pushAll(db) {

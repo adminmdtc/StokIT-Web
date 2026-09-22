@@ -233,8 +233,23 @@ const Store = {
   },
 
 
+  /* ประจำ id ให้ทุกรายการที่ยังไม่มี id — รายการเก่า/backup บางแถวไม่มี id
+     ถ้าปล่อยไว้ ตอนซิงค์คลาวด์แถวพวกนี้จะหาย ทำให้ยอดคงเหลือเพี้ยน */
+  normalizeIds() {
+    let fixed = 0;
+    const fix = (list) => { (list || []).forEach(x => { if (x && !x.id) { x.id = uid('id'); fixed++; } }); };
+    if (this.db) {
+      fix(this.db.items);
+      fix(this.db.transactions);
+      fix(this.db.users);
+      fix(this.db.reorderItems);
+    }
+    return fixed;
+  },
+
   async save() {
     // อัพเดท timestamp สำหรับ sync
+    this.normalizeIds();
     this.db._lastSync = Date.now();
     this.db._lastUpdate = new Date().toISOString();
     
