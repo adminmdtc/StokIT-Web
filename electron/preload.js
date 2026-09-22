@@ -2,6 +2,16 @@
 
 const { contextBridge, ipcRenderer } = require('electron');
 
+// ปุ่มอัปเดตโปรแกรมในหน้าแอป (แยกจาก electronDB เพื่อไม่ให้เว็บเข้าเงื่อนไขเดสก์ท็อป)
+contextBridge.exposeInMainWorld('electronUpdater', {
+  isDesktop: true,
+  version: () => ipcRenderer.invoke('updater:version'),
+  check: () => ipcRenderer.invoke('updater:check'),
+  download: () => ipcRenderer.invoke('updater:download'),
+  install: () => ipcRenderer.invoke('updater:install'),
+  onUpdateEvent: (cb) => ipcRenderer.on('update-status', (_e, data) => cb(data)),
+});
+
 contextBridge.exposeInMainWorld('electronDB', {
   // Read
   getAll: (table) => ipcRenderer.invoke('db:getAll', table),

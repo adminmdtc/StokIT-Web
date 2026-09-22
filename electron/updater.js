@@ -181,6 +181,17 @@ autoUpdater.on('error', (err) => {
   closeUpdateWindow();
 });
 
+/**
+ * ส่งสถานะอัพเดทไปยังหน้าต่างหลักด้วย (สำหรับปุ่ม "อัปเดตโปรแกรม" บนแถบด้านบน)
+ */
+function sendToMainWindow(channel, data) {
+  try {
+    const { BrowserWindow: BW } = require('electron');
+    const wins = BW.getAllWindows();
+    wins.forEach(w => { if (!w.isDestroyed() && w.webContents) w.webContents.send(channel, data); });
+  } catch (e) { /* ไม่มีหน้าต่าง */ }
+}
+
 // === IPC Handlers ===
 
 ipcMain.on('start-download', () => {
@@ -196,6 +207,57 @@ ipcMain.on('restart-app', () => {
 ipcMain.on('close-update-window', () => {
   closeUpdateWindow();
 });
+
+// === IPC Handlers สำหรับปุ่มในหน้าแอป (invoke-based) ===
+const { ipcMain: _ipc } = require('electron');
+
+_ipc.handle('updater:version', () => {
+  try { return require('./package.json').version; } catch (e) { return ''; }
+});
+
+_ipc.handle('updater:check', async () => {
+  try {
+    isChecking = true;
+    const res = await autoUpdater.checkForUpdates();
+    isChecking = false;
+    const info = res && res.updateInfo ? res.updateInfo : null;
+    const cur = (function(){ try { return require('./package.json').version; } catch (e) { return ''; } })();
+    if (info && info.version && info.version !== cur) {
+      return { status: 'available', currentVersion: cur, newVersion: info.version, releaseNotes: info.releaseNotes || null };
+    }
+    return { status: 'up-to-date', currentVersion: cur };
+  } catch (err) {
+    isChecking = false;
+    return { status: 'error', message: (err && err.message) || String(err) };
+  }
+});
+
+_ipc.handle('updater:download', async () => {
+  try { await autoUpdater.downloadUpdate(); return { ok: true }; }
+  catch (err) { return { ok: false, message: (err && err.message) || String(err) }; }
+});
+
+_ipc.handle('updater:install', () => {
+  autoUpdater.quitAndInstall(false, true);
+  return { ok: true };
+});
+
+// ส่งต่อทุกอีเวนต์ของ autoUpdater ไปยังหน้าหลักด้วย (ให้ปุ่มแสดง % ได้)
+autoUpdater.on('checking-for-update', () => sendToMainWindow('update-status', { status: 'checking', message: 'กำลังตรวจสอบอัพเดท...' }));
+autoUpdater.on('update-available', (info) => sendToMainWindow('update-status', {
+  status: 'available',
+  message: 'พบเวอร์ชันใหม่ ' + info.version,
+  currentVersion: (function(){ try { return require('./package.json').version; } catch (e) { return ''; } })(),
+  newVersion: info.version,
+}));
+autoUpdater.on('update-not-available', (info) => sendToMainWindow('update-status', { status: 'up-to-date', message: 'เป็นเวอร์ชันล่าสุดแล้ว', currentVersion: info.version }));
+autoUpdater.on('download-progress', (progress) => sendToMainWindow('update-status', {
+  status: 'downloading',
+  message: 'กำลังดาวน์โหลด... ' + Math.round(progress.percent) + '%',
+  percent: progress.percent,
+}));
+autoUpdater.on('update-downloaded', (info) => sendToMainWindow('update-status', { status: 'downloaded', message: 'ดาวน์โหลดเสร็จแล้ว', newVersion: info.version }));
+autoUpdater.on('error', (err) => sendToMainWindow('update-status', { status: 'error', message: (err && err.message) || String(err) }));
 
 module.exports = {
   checkForUpdates: checkForUpdates,
