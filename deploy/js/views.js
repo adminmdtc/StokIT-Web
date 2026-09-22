@@ -2335,11 +2335,11 @@ App.dbwSupaSql = function () {
     'create policy "it_stock anon all" on public.it_reorder for all to anon using (true) with check (true);',
     'create policy "it_stock anon all" on public.it_meta for all to anon using (true) with check (true);',
     '',
-    '-- เปิด Realtime: ให้ตารางเหล่านี้แจ้งเตือนการเปลี่ยนแปลงสด',
-    'alter publication supabase_realtime add table public.it_items;',
-    'alter publication supabase_realtime add table public.it_transactions;',
-    'alter publication supabase_realtime add table public.it_users;',
-    'alter publication supabase_realtime add table public.it_reorder;',
+    '-- เปิด Realtime: ให้ตารางเหล่านี้แจ้งเตือนการเปลี่ยนแปลงสด (รันซ้ำได้ ไม่ error)',
+    'do $$ begin alter publication supabase_realtime add table public.it_items; exception when duplicate_object then null; end $$;',
+    'do $$ begin alter publication supabase_realtime add table public.it_transactions; exception when duplicate_object then null; end $$;',
+    'do $$ begin alter publication supabase_realtime add table public.it_users; exception when duplicate_object then null; end $$;',
+    'do $$ begin alter publication supabase_realtime add table public.it_reorder; exception when duplicate_object then null; end $$;',
   ].join('\n');
   openModal(`
     <div class="dbwin-titlebar"><span>SQL สร้างตาราง Supabase [ กด Esc เพื่อปิด ]</span><button class="dbwin-close" onclick="closeModal()" title="ปิด">x</button></div>
