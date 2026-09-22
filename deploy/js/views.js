@@ -2132,7 +2132,7 @@ App.openDbWindow = function () {
         </div>
         <div class="dbwin-row">
           <label class="dbwin-strong">anon public key :</label>
-          <input class="dbwin-input dbwin-pass" id="dbw-sb-key" type="password" placeholder="eyJhbGciOiJIUzI1NiIs..." autocomplete="new-password">
+          <input class="dbwin-input" id="dbw-sb-key" type="text" placeholder="eyJ... หรือ sb_publishable_..." spellcheck="false" autocomplete="off" style="font-family:Consolas,monospace">
         </div>
         <div class="dbwin-row dbwin-check-row">
           <label></label>
