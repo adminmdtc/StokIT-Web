@@ -2624,6 +2624,14 @@ function renderBarcode() {
         </select>
       </div>
       <div class="field">
+        <label>เครื่องพิมพ์ / กระดาษ</label>
+        <select id="barcode-paper" class="input" onchange="App.updateBarcodePreview()">
+          <option value="roll" selected>ฉลากม้วน — TSC DA210 ฯลฯ (1 ฉลาก/แผ่น)</option>
+          <option value="a4">กระดาษ A4 (เลเซอร์/อิงค์เจ็ต)</option>
+        </select>
+        <p class="muted small" style="margin-top:4px">TSC DA210: ตั้งขนาดกระดาษในไดรเวอร์เป็น 80 × 50 มม. (Printing Preferences → Size) แล้วกดพิมพ์ ระบบจะจัด 1 ฉลาก = 1 แผ่นให้เอง</p>
+      </div>
+      <div class="field">
         <label>รูปแบบป้าย</label>
         <select id="barcode-layout" class="input" onchange="App.updateBarcodePreview()">
           <option value="barcode-only">บาร์โค้ดอย่างเดียว</option>
@@ -2835,6 +2843,8 @@ App.printBarcodes = function() {
   const copies = parseInt(document.getElementById('barcode-copies').value) || 1;
   const barcodeType = document.getElementById('barcode-type').value;
   const layout = document.getElementById('barcode-layout').value;
+  const paperEl = document.getElementById('barcode-paper');
+  const roll = !paperEl || paperEl.value === 'roll';
   
   const sizeMap = {
     sticker8050: { width: 2, height: 45, fontSize: 11, css: 'width: 80mm; height: 50mm;', qrSize: 55 },
@@ -2844,6 +2854,7 @@ App.printBarcodes = function() {
     xlarge: { width: 3, height: 100, fontSize: 16, css: 'width: 100mm; height: 55mm;', qrSize: 80 },
   };
   const s = sizeMap[size] || sizeMap.sticker8050;
+  const dim = /width:\s*([\d.]+)mm;\s*height:\s*([\d.]+)mm/.exec(s.css || '') || [null, '80', '50'];
   
   // Pre-generate QR codes as data URLs
   const qrDataUrls = {};
@@ -2864,14 +2875,20 @@ App.printBarcodes = function() {
   
   let printContent = '<html><head><title>พิมพ์บาร์โค้ด</title>';
   printContent += '<style>';
-  printContent += 'body { font-family: Arial, sans-serif; margin: 0; padding: 10px; }';
-  printContent += '.barcode-container { display: flex; flex-wrap: wrap; gap: 2mm; }';
-  printContent += '.barcode-item { border: 1px dashed #bbb; padding: 2mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; }';
+  printContent += 'body { font-family: Arial, sans-serif; margin: 0; padding: ' + (roll ? '0' : '10px') + '; }';
+  printContent += roll
+    ? '.barcode-container { display: block; }'
+    : '.barcode-container { display: flex; flex-wrap: wrap; gap: 2mm; }';
+  printContent += roll
+    ? '.barcode-item { width: ' + dim[1] + 'mm; height: ' + dim[2] + 'mm; border: none; padding: 1.5mm; box-sizing: border-box; overflow: hidden; page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; } .barcode-item:last-child { page-break-after: auto; }'
+    : '.barcode-item { border: 1px dashed #bbb; padding: 2mm; text-align: center; page-break-inside: avoid; display: flex; flex-direction: column; align-items: center; justify-content: center; box-sizing: border-box; overflow: hidden; }';
   printContent += '.barcode-item svg { max-width: 100%; }';
-  printContent += '.barcode-name { font-size: 10pt; font-weight: bold; margin-top: 2mm; }';
+  printContent += '.barcode-name { font-size: 10pt; font-weight: bold; margin-top: ' + (roll ? '1mm' : '2mm') + '; }';
   printContent += '.barcode-code { font-size: 8pt; color: #666; }';
-  printContent += '.qr-image { margin-top: 2mm; }';
-  printContent += '@media print { .no-print { display: none; } @page { size: A4; margin: 5mm; } }';
+  printContent += '.qr-image { margin-top: ' + (roll ? '1mm' : '2mm') + '; }';
+  printContent += roll
+    ? '@media print { .no-print { display: none; } @page { size: ' + dim[1] + 'mm ' + dim[2] + 'mm; margin: 0; } }'
+    : '@media print { .no-print { display: none; } @page { size: A4; margin: 5mm; } }';
   printContent += '</style></head><body>';
   printContent += '<div class="no-print" style="text-align: center; margin-bottom: 10px;">';
   printContent += '<button onclick="window.print()">พิมพ์</button>';
