@@ -118,17 +118,37 @@ const SupabaseBackend = {
   /* ---- อัปโหลดข้อมูลทั้งหมดขึ้นคลาวด์ (upsert ตาม id) ---- */
   async _upsert(table, rows) {
     const CHUNK = 100;
+    let skipped = 0;
     for (let i = 0; i < rows.length; i += CHUNK) {
-      await this._rest('/rest/v1/' + table, {
-        method: 'POST',
-        headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify(rows.slice(i, i + CHUNK)),
-      });
+      const slice = rows.slice(i, i + CHUNK);
+      try {
+        await this._postRows(table, slice);
+      } catch (e) {
+        if (/object keys must match/i.test(e.message || '')) {
+          /* บางแถวมีชุด field ไม่เท่ากัน (ปกติเพราะแถวนั้นไม่มี id) — แยกส่งทีละแถว
+             เพื่อให้ข้อมูลที่ดีขึ้นคลาวด์ครบ และข้ามเฉพาะแถวที่มีปัญหา */
+          for (const r of slice) {
+            try { await this._postRows(table, [r]); }
+            catch (e2) { skipped++; console.error('Supabase: ข้ามแถวที่ซิงค์ไม่ได้', table, r && r.id, e2.message); }
+          }
+        } else throw e;
+      }
     }
+    this._lastSkipped = skipped;
+  },
+
+  async _postRows(table, rows) {
+    await this._rest('/rest/v1/' + table, {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify(rows),
+    });
   },
 
   _rows(list) {
-    return (list || []).map(x => ({ id: x.id, data: x, updated_at: x.updatedAt || Date.now() }));
+    /* ตัดแถวที่ไม่มี id ออก (ไม่มี primary key ซิงค์ไม่ได้) — กัน error "All object keys must match" */
+    return (list || []).filter(x => x && x.id !== undefined && x.id !== null && x.id !== '')
+      .map(x => ({ id: String(x.id), data: x, updated_at: x.updatedAt || Date.now() }));
   },
 
   async pushAll(db) {
