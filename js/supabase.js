@@ -48,7 +48,7 @@ const SupabaseBackend = {
   /* แปลง error จาก Supabase เป็นข้อความไทยที่เข้าใจง่าย */
   _thaiError(status, body) {
     const msg = (body && (body.message || body.error_description || body.error)) || '';
-    if (status === 401 || status === 403) return 'API key ไม่ถูกต้อง (key ที่ส่งไป: ' + String(this.key || '').slice(0, 8) + '...' + String(this.key || '').slice(-4) + ' ยาว ' + String(this.key || '').length + ' ตัว) — ลองคัดลอก key ใหม่จากหน้า Connect ของ Supabase';
+    if (status === 401 || status === 403) return 'API key ไม่ถูกต้อง (URL ที่เชื่อม: ' + String(this.url || '') + ' | key ที่ส่ง: ' + String(this.key || '').slice(0, 8) + '...' + String(this.key || '').slice(-4) + ') — URL กับ key ต้องมาจากโปรเจกต์เดียวกัน ตรวจที่ supabase.com → เข้าโปรเจกต์ → ปุ่ม Connect';
     if (status === 404 || /relation .* does not exist|does not exist/i.test(msg)) return 'ยังไม่ได้สร้างตารางใน Supabase — กดปุ่ม "ดู SQL สร้างตาราง" แล้ววางใน SQL Editor ก่อน';
     if (status === 400 && /jwt|apikey/i.test(msg)) return 'API key รูปแบบไม่ถูกต้อง';
     if (status === 42501 || /row-level security|permission denied/i.test(msg)) return 'ตารางยังไม่เปิดสิทธิ์ — รันคำสั่ง CREATE POLICY จากคู่มือด้วย';
@@ -58,9 +58,11 @@ const SupabaseBackend = {
 
   async _rest(path, opts = {}) {
     if (!this.url || !this.key) throw new Error('กรุณากรอก URL และ anon key ของ Supabase ก่อน');
+    /* ส่ง key ทั้ง header และ query param (กันโปรซีกลาง/แอนติไวรัสตัด header ทิ้ง) */
+    const sep = path.includes('?') ? '&' : '?';
     let resp;
     try {
-      resp = await fetch(this.url + path, Object.assign({
+      resp = await fetch(this.url + path + sep + 'apikey=' + encodeURIComponent(this.key), Object.assign({
         headers: Object.assign({
           'apikey': this.key,
           'Authorization': 'Bearer ' + this.key,
