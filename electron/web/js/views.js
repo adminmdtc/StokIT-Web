@@ -178,7 +178,33 @@ App.onTxItemChange = function (sel) {
   if (!row) return;
   const it = Store.getItem(sel.value);
   row.classList.toggle('tracked', !!(it && it.trackSerial));
+  updateTxLocHint(row, it);
 };
+
+/* แถบแสดงตำแหน่งตู้+ชั้นของวัสดุที่เลือก — ช่วยให้หยิบของถูกชั้น */
+function updateTxLocHint(row, it) {
+  if (!row) return;
+  let hint = row.querySelector('.tx-loc-hint');
+  if (!it) { if (hint) hint.remove(); return; }
+  const loc = String(it.location || '').trim();
+  const m = loc.match(/^ตู้\s+([A-Za-z])\s+ชั้นที่\s*(\d+)$/);
+  if (!loc) { if (hint) hint.remove(); return; }
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'tx-loc-hint';
+    const wrap = row.querySelector('.tx-item-wrap');
+    if (wrap) wrap.appendChild(hint); else row.prepend(hint);
+  }
+  if (m) {
+    const names = cabNameByLetter();
+    const cabName = names[m[1].toUpperCase()] || ('ตู้ ' + m[1]);
+    hint.innerHTML = `${icon('box', 13)} ${esc(cabName)} — ชั้นที่ ${esc(m[2])}`;
+    hint.classList.add('has-shelf');
+  } else {
+    hint.innerHTML = `${icon('box', 13)} ${esc(loc)}`;
+    hint.classList.remove('has-shelf');
+  }
+}
 
 function parseSerials(v) {
   return String(v || '').split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
@@ -818,6 +844,7 @@ App.searchByBarcode = function (inputEl) {
     return;
   }
   select.value = it.id;
+  updateTxLocHint(row, it);
   App.onTxItemChange(select);
   inputEl.value = '';
   inputEl.focus();

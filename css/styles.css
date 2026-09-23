@@ -1168,6 +1168,23 @@ text.tx-tab, button.tx-tab { line-height: 1; }
   margin-bottom: 20px; font-size: 14px;
 }
 .dept-filter-banner strong { font-weight: 700; }
+
+/* แถบตำแหน่งตู้+ชั้นในฟอร์มรับเข้า/จ่ายออก */
+.tx-loc-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--primary-light, #e0e7ff);
+  color: var(--primary-dark, #4f46e5);
+  width: fit-content;
+}
+.tx-loc-hint.has-shelf { background: #dcfce7; color: #15803d; }
+.tx-loc-hint svg { flex: 0 0 auto; }
 .dept-filter-banner .btn-ghost { color: #fff; border-color: rgba(255,255,255,0.3); }
 .dept-filter-banner .btn-ghost:hover { background: rgba(255,255,255,0.15); }
 .dept-filter-banner .btn-soft { background: rgba(255,255,255,0.2); color: #fff; }
