@@ -3,9 +3,28 @@
    ปุ่ม "อัปเดตโปรแกรม" บนแถบด้านบน — เฉพาะแอปเดสก์ท็อป (Electron)
    เช็คเวอร์ชันจาก GitHub Releases → ดาวน์โหลด → รีสตาร์ทติดตั้ง
    (เว็บไม่แสดงปุ่มนี้ — electronUpdater มีเฉพาะใน Electron)
+   + chip แสดงเวอร์ชันมุมขวาบน (เดสก์ท็อป: จาก Electron, เว็บ: แสดง "เว็บ")
    ============================================================ */
 
 (function () {
+  /* ---- chip เวอร์ชันเล็ก ๆ ข้างวันที่ (มุมขวาบน) ---- */
+  function initVersionChip() {
+    const chip = document.getElementById('today-chip');
+    if (!chip || !chip.parentElement) return;
+    if (document.getElementById('version-chip')) return;
+    const v = document.createElement('span');
+    v.id = 'version-chip';
+    v.title = 'เวอร์ชันโปรแกรม';
+    v.style.cssText = 'margin-left:6px;padding:2px 9px;border-radius:999px;background:rgba(148,163,184,.15);color:#94a3b8;font-size:11.5px;font-weight:600;white-space:nowrap;';
+    const apply = (ver) => { v.textContent = 'v' + ver; chip.parentElement.insertBefore(v, chip.nextSibling); };
+    if (window.electronUpdater && window.electronUpdater.isDesktop) {
+      window.electronUpdater.version().then((ver) => apply(ver || '?')).catch(() => apply('?'));
+    } else {
+      v.textContent = 'เว็บ';
+      chip.parentElement.insertBefore(v, chip.nextSibling);
+    }
+  }
+
   function initAppUpdater() {
     const btn = document.getElementById('btn-update-app');
     if (!btn) return;
@@ -78,6 +97,6 @@
     });
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initAppUpdater);
-  else initAppUpdater();
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { initVersionChip(); initAppUpdater(); });
+  else { initVersionChip(); initAppUpdater(); }
 })();
