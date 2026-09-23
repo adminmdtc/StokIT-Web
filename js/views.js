@@ -681,6 +681,10 @@ function renderStock() {
   </div>` : '';
   return `
   ${deptBanner}
+  <div class="dept-filter-banner hidden" id="loc-filter-banner">
+    <span id="loc-filter-label"></span>
+    <a href="javascript:void(0)" class="btn btn-ghost btn-sm" onclick="App.clearLocFilter()">ล้างตัวกรองตู้/ชั้น</a>
+  </div>
   <div class="card">
     <div class="toolbar">
       <div class="search-box">${icon('search', 16)}<input class="input" id="st-search" placeholder="ค้นหา หรือสแกนบาร์โค้ด..." oninput="App.onStockSearchInput(this)" onkeydown="App.scanEnter(event)"></div>
@@ -715,13 +719,16 @@ function handleScanResult(raw) {
   if (locM) {
     const names = cabNameByLetter();
     const cabName = names[locM[1]] || ('ตู้ ' + locM[1]);
+    App._locFilter = { letter: locM[1], shelf: +locM[2], cabName };
     const search = document.getElementById('st-search');
-    if (search) { search.value = cabName; App.filterStock(); }
-    toast(`📍 ${cabName} ชั้นที่ ${locM[2]} — แสดงวัสดุใน${cabName}`, 'info');
+    if (search) search.value = '';
+    App.filterStock();
+    toast(`📍 ${cabName} ชั้นที่ ${locM[2]} — แสดงเฉพาะวัสดุชั้นนี้`, 'info');
     return;
   }
   const it = Store.items().find(i => i.code.toUpperCase() === code || i.id === code);
   const search = document.getElementById('st-search');
+  if (App._locFilter) { App._locFilter = null; } /* สแกนวัสดุ = ล้างตัวกรองตู้/ชั้น */
   if (search) {
     search.value = code;
     App.filterStock();
@@ -1016,12 +1023,20 @@ App.filterStock = function (params) {
   const cat = $('#st-cat').value;
   const groupParam = params && params.group ? params.group : '';
   const lowOnly = params && params.filter === 'low';
+  const loc = App._locFilter || null;
+  const shelfPrefix = loc ? ('ตู้ ' + loc.letter + ' ') : '';
   const stock = Store.getStock().filter(s =>
-    (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (s.location || '').toLowerCase().includes(q)) &&
+    (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (!loc && (s.location || '').toLowerCase().includes(q))) &&
     (!cat || s.category === cat) &&
     (!groupParam || s.group === groupParam) &&
-    (!lowOnly || s.status !== 'ok')
+    (!lowOnly || s.status !== 'ok') &&
+    (!loc || ((s.location || '').startsWith(shelfPrefix) && (!loc.shelf || (s.location || '').includes(' ชั้นที่ ' + loc.shelf))))
   );
+  const locBanner = document.getElementById('loc-filter-banner');
+  if (locBanner) {
+    locBanner.classList.toggle('hidden', !loc);
+    if (loc) document.getElementById('loc-filter-label').innerHTML = `กำลังแสดง: <strong>${esc(loc.cabName)}</strong>${loc.shelf ? ' — ชั้นที่ ' + loc.shelf : ' (ทั้งตู้)'}`;
+  }
   const body = $('#st-body');
   if (!body) return;
   body.innerHTML = stock.map(s => `
@@ -1057,6 +1072,11 @@ function itemModal(item) {
   const selectedGroup = item ? item.group : '';
   const groups = selectedMission ? getMissionGroups(selectedMission) : [];
   const groupOptions = groups.map(g => `<option value="${g.id}" ${selectedGroup === g.id ? 'selected' : ''}>${esc(g.name)}</option>`).join('');
+  /* ตำแหน่งตู้/ชั้นเฉพาะรูปแบบใหม่ "ตู้ A ชั้นที่ 3" หรือ "ตู้ A" — รูปแบบเก่า (เช่น ตู้ A เลขที่ 3) ให้พิมพ์เองเพื่อไม่ข้อมูลหาย */
+  const locVal = item ? (item.location || '') : '';
+  const locM = locVal.match(/^ตู้\s+([A-Za-z])\s+ชั้นที่\s*(\d+)$/) || locVal.match(/^ตู้\s+([A-Za-z])$/);
+  const editCab = locM ? locM[1].toUpperCase() : '';
+  const editShelf = locM && locM[2] ? locM[2] : '';
   openModal(modalShell(isEdit ? 'แก้ไขวัสดุ' : 'เพิ่มวัสดุใหม่',
     `<form id="item-form" class="form-grid" onsubmit="return false">
       <div class="field"><label>รหัสวัสดุ</label>
@@ -1083,7 +1103,19 @@ function itemModal(item) {
       <div class="field"><label>จำนวนขั้นต่ำ (เตือนเมื่อใกล้หมด)</label><input class="input" id="if-min" type="number" min="0" step="1" value="${item ? item.minStock : 0}"></div>
       <div class="field full"><label class="check"><input type="checkbox" id="if-serial" ${item && item.trackSerial ? 'checked' : ''}> ติดตามเป็นรายชิ้น (Serial Number / Inventory Tag)</label>
         <span class="muted small">สำหรับวัสดุราคาสูง เช่น โน้ตบุ๊ก เครื่องพิมพ์ — ต้องระบุ Serial ทุกครั้งที่รับเข้า / จำหน่าย</span></div>
-      <div class="field full"><label>สถานที่จัดเก็บ</label><input class="input" id="if-loc" value="${esc(item ? item.location : '')}" placeholder="เช่น ห้องพัสดุ ชั้น A"></div>
+      <div class="field"><label>ตู้จัดเก็บ</label>
+        <select class="input" id="if-cab" onchange="App.onItemCabinetChange()">
+          <option value="">— ไม่ระบุ / พิมพ์เอง —</option>
+          ${cabinetOptionsForSelect(editCab)}
+        </select>
+        <input class="input mt-2 ${editCab ? 'hidden' : ''}" id="if-loc-custom" value="${editCab ? '' : esc(locVal)}" placeholder="พิมพ์สถานที่จัดเก็บเอง เช่น ห้องเซิร์ฟเวอร์">
+      </div>
+      <div class="field"><label>ชั้นที่</label>
+        <select class="input" id="if-shelf" ${editCab ? '' : 'disabled'}>
+          <option value="">${editCab ? '— ทั้งตู้ / ไม่ระบุชั้น —' : '— เลือกตู้ก่อน —'}</option>
+          ${editCab ? shelfOptionsFor(editCab, editShelf) : ''}
+        </select>
+      </div>
       <div class="field full"><label>หมายเหตุ</label><input class="input" id="if-note" value="${esc(item ? item.note : '')}"></div>
       <div class="field full"><label>รูปภาพวัสดุ</label>
         <div class="item-image-wrap" id="if-image-wrap">
@@ -1178,7 +1210,7 @@ App.saveItem = function (id) {
     workUnit: '',
     price: 0,
     minStock: Number($('#if-min').value) || 0,
-    location: $('#if-loc').value.trim(),
+    location: App.resolveItemLocation(),
     note: $('#if-note').value.trim(),
     trackSerial: !!document.getElementById('if-serial').checked,
     image: '',
@@ -2763,6 +2795,52 @@ function cabNameByLetter() {
   App.cabinets().forEach((c, i) => { map[cabLetter(c, i)] = c.name; });
   return map;
 }
+
+/* ---------- ตัวกรองตู้/ชั้นสำหรับหน้าคงเหลือ + ฟอร์มวัสดุ ---------- */
+App._locFilter = null;
+
+App.clearLocFilter = function () { App._locFilter = null; App.filterStock(); };
+
+function cabinetOptionsForSelect(selectedLetter) {
+  return App.cabinets().map((c, i) => {
+    const letter = cabLetter(c, i);
+    return `<option value="${letter}" ${selectedLetter === letter ? 'selected' : ''}>${esc(c.name)}</option>`;
+  }).join('');
+}
+
+function shelfOptionsFor(letter, selected) {
+  const cab = App.cabinets().find((c, i) => cabLetter(c, i) === letter);
+  const n = Math.max(1, (cab && cab.shelves) || 1);
+  return Array.from({ length: n }, (_, i) => `<option value="${i + 1}" ${String(selected) === String(i + 1) ? 'selected' : ''}>ชั้นที่ ${i + 1}</option>`).join('');
+}
+
+App.onItemCabinetChange = function () {
+  const letter = document.getElementById('if-cab').value;
+  const custom = document.getElementById('if-loc-custom');
+  const shelfSel = document.getElementById('if-shelf');
+  if (custom) custom.classList.toggle('hidden', !!letter);
+  if (!letter) {
+    shelfSel.innerHTML = '<option value="">— เลือกตู้ก่อน —</option>';
+    shelfSel.disabled = true;
+    return;
+  }
+  const cab = App.cabinets().find((c, i) => cabLetter(c, i) === letter);
+  const n = Math.max(1, (cab && cab.shelves) || 1);
+  shelfSel.disabled = false;
+  shelfSel.innerHTML = '<option value="">— ทั้งตู้ / ไม่ระบุชั้น —</option>' +
+    Array.from({ length: n }, (_, i) => `<option value="${i + 1}">ชั้นที่ ${i + 1}</option>`).join('');
+};
+
+/* รวมตู้ + ชั้นเป็นข้อความสถานที่ เช่น "ตู้ A ชั้นที่ 3" */
+App.resolveItemLocation = function () {
+  const cabSel = document.getElementById('if-cab');
+  const shelfSel = document.getElementById('if-shelf');
+  const custom = document.getElementById('if-loc-custom');
+  if (cabSel && cabSel.value) {
+    return 'ตู้ ' + cabSel.value + (shelfSel && shelfSel.value ? ' ชั้นที่ ' + shelfSel.value : '');
+  }
+  return custom && custom.value.trim() ? custom.value.trim() : '';
+};
 
 App.locCode = function (letter, shelf) { return 'LOC:' + letter + shelf; };
 
