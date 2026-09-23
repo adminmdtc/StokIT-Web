@@ -821,6 +821,25 @@ text.tx-tab, button.tx-tab { line-height: 1; }
 .dbwin-status .dbwin-ok { color: #16a34a; }
 .dbwin-status .dbwin-err { color: #ef4444; }
 
+/* มือถือ: หน้าต่างตั้งค่าฐานข้อมูลต้องพอดีจอ — label ย้ายขึ้นบน ช่องกรอกเต็มความกว้าง */
+@media (max-width: 640px) {
+  .modal-overlay { padding: 12px 8px; }
+  .modal.dbwin { width: 100%; max-width: 100%; max-height: none; }
+  .dbwin-titlebar { position: sticky; top: 0; z-index: 2; }
+  .dbwin-body { padding: 12px 10px 14px; }
+  .dbwin-heading { font-size: 18px; margin: 0 0 10px; }
+  .dbwin-row { flex-direction: column; align-items: stretch; gap: 4px; margin-bottom: 10px; }
+  .dbwin-row > label { width: auto; min-width: 0; text-align: left; font-size: 13px; }
+  .dbwin-check { font-size: 13px; }
+  .dbwin-check-row .dbwin-check { justify-content: flex-start; }
+  .dbwin-input { width: 100%; min-width: 0; flex: none; font-size: 16px; /* >=16px กัน iOS ซูมตอนโฟกัส */ }
+  .dbwin-input.dbwin-port { max-width: none; }
+  .dbwin-savebtn { width: 100%; padding: 14px 16px; }
+  .dbwin-btn { flex: 1 1 40%; padding: 12px 8px; }
+  .dbwin-btnrow { gap: 8px; }
+  .dbwin-status { font-size: 12px; }
+}
+
 /* ============ Badges ============ */
 .badge {
   display: inline-flex; align-items: center; gap: 7px; 
