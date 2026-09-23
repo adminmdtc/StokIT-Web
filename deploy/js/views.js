@@ -710,6 +710,16 @@ function renderStock() {
 function handleScanResult(raw) {
   const code = String(raw || '').trim().toUpperCase();
   if (!code) return;
+  /* QR ตู้/ชั้นจัดเก็บ เช่น LOC:A3 — แสดงวัสดุในตู้นั้นทั้งตู้ */
+  const locM = code.match(/^LOC[:\-]?([A-Z])(\d+)$/);
+  if (locM) {
+    const names = cabNameByLetter();
+    const cabName = names[locM[1]] || ('ตู้ ' + locM[1]);
+    const search = document.getElementById('st-search');
+    if (search) { search.value = cabName; App.filterStock(); }
+    toast(`📍 ${cabName} ชั้นที่ ${locM[2]} — แสดงวัสดุใน${cabName}`, 'info');
+    return;
+  }
   const it = Store.items().find(i => i.code.toUpperCase() === code || i.id === code);
   const search = document.getElementById('st-search');
   if (search) {
@@ -1007,7 +1017,7 @@ App.filterStock = function (params) {
   const groupParam = params && params.group ? params.group : '';
   const lowOnly = params && params.filter === 'low';
   const stock = Store.getStock().filter(s =>
-    (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q)) &&
+    (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (s.location || '').toLowerCase().includes(q)) &&
     (!cat || s.category === cat) &&
     (!groupParam || s.group === groupParam) &&
     (!lowOnly || s.status !== 'ok')
@@ -2678,12 +2688,230 @@ function renderBarcode() {
   <div id="barcode-preview-area" class="card hidden">
     <div class="card-head"><div><h3>ตัวอย่างบาร์โค้ด</h3></div></div>
     <div id="barcode-preview-content" class="label-sheet" style="display: flex; flex-wrap: wrap; gap: 10px; padding: 15px;"></div>
+  </div>
+  
+  <div class="card" style="margin-top:16px;">
+    <div class="card-head"><div><h3>พิมพ์ QR Code ตู้ / ชั้นจัดเก็บ</h3><p class="muted small">ป้ายติดหน้าตู้แต่ละชั้น — สแกน QR ที่หน้าคงเหลือแล้วแอปจะแสดงวัสดุในตู้นั้นทันที</p></div></div>
+    <div class="form-grid">
+      <div class="field">
+        <label>เครื่องพิมพ์ / กระดาษ</label>
+        <select id="loc-paper" class="input">
+          <option value="roll" selected>ฉลากม้วน — TSC DA210 ฯลฯ (1 ฉลาก/แผ่น)</option>
+          <option value="a4">กระดาษ A4 (เลเซอร์/อิงค์เจ็ต)</option>
+        </select>
+        <p class="muted small" style="margin-top:4px">สติกเกอร์ขนาด 80 × 50 มม. — TSC DA210: ตั้งขนาดกระดาษในไดรเวอร์เป็น 80 × 50 มม. แล้วกดพิมพ์</p>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;">
+      <button type="button" class="btn btn-soft btn-sm" onclick="App.addCabinet()">+ เพิ่มตู้</button>
+      <button type="button" class="btn btn-soft btn-sm" onclick="App.selectAllLoc(true)">เลือกทุกชั้น</button>
+      <button type="button" class="btn btn-ghost btn-sm" onclick="App.selectAllLoc(false)">ล้างเลือก</button>
+      <span id="loc-count" class="muted small">เลือก 0 สติกเกอร์</span>
+    </div>
+    <div id="loc-sticker-list"></div>
+    <div class="form-actions">
+      <button type="button" class="btn btn-primary" onclick="App.printLocQr()">
+        ${icon('printer', 16)} พิมพ์ QR ตู้/ชั้น
+      </button>
+      <button type="button" class="btn btn-soft" onclick="App.previewLocQr()">
+        ${icon('eye', 16)} ดูตัวอย่าง
+      </button>
+    </div>
+  </div>
+  <div id="loc-preview-area" class="card hidden">
+    <div class="card-head"><div><h3>ตัวอย่าง QR ตู้/ชั้น</h3></div></div>
+    <div id="loc-preview-content" style="display:flex;flex-wrap:wrap;gap:10px;padding:15px;"></div>
   </div>`;
 }
 
 function initBarcode() {
   App.filterBarcodeItems();
+  App.renderLocStickers();
 }
+
+/* ============================================================
+   พิมพ์ QR Code ตู้ / ชั้นจัดเก็บ
+   QR บรรจุรหัส ASCII สั้น ๆ เช่น LOC:A1 — สแกนที่หน้าคงเหลือ
+   แล้วระบบจะแสดงวัสดุในตู้นั้นทันที (ค่าตู้บันทึกในเครื่องนี้)
+   ============================================================ */
+const DEFAULT_CABINETS = [
+  { name: 'ตู้ A', shelves: 6 },
+  { name: 'ตู้ B', shelves: 4 },
+  { name: 'ตู้ C', shelves: 6 },
+  { name: 'ตู้ D', shelves: 5 },
+];
+
+App.cabinets = function () {
+  try {
+    const saved = JSON.parse(localStorage.getItem('it_cabinets') || 'null');
+    if (Array.isArray(saved) && saved.length) return saved;
+  } catch (e) { /* ignore */ }
+  return JSON.parse(JSON.stringify(DEFAULT_CABINETS));
+};
+
+App.saveCabinets = function (list) {
+  localStorage.setItem('it_cabinets', JSON.stringify(list));
+};
+
+function cabLetter(cab, idx) {
+  const m = String(cab.name || '').match(/[A-Za-z]/);
+  return (m ? m[0] : String.fromCharCode(65 + (idx % 26))).toUpperCase();
+}
+
+function cabNameByLetter() {
+  const map = {};
+  App.cabinets().forEach((c, i) => { map[cabLetter(c, i)] = c.name; });
+  return map;
+}
+
+App.locCode = function (letter, shelf) { return 'LOC:' + letter + shelf; };
+
+function locQrDataUrl(text) {
+  const qr = qrcode(0, 'M');
+  qr.addData(text);
+  qr.make();
+  return qr.createDataURL(4, 0);
+}
+
+App.renderLocStickers = function () {
+  const cabs = App.cabinets();
+  const grid = document.getElementById('loc-sticker-list');
+  if (!grid) return;
+  grid.innerHTML = cabs.map((c, ci) => {
+    const letter = cabLetter(c, ci);
+    const shelves = Array.from({ length: Math.max(1, c.shelves | 0) }, (_, i) => i + 1);
+    return `
+      <div class="card card-muted" style="padding:10px 12px; margin-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <input class="input loc-cab-name" data-ci="${ci}" value="${esc(c.name)}" style="width:140px" title="ชื่อตู้" onchange="App.onLocConfigChange()">
+          <label class="muted small">จำนวนชั้น</label>
+          <input class="input loc-cab-shelves" data-ci="${ci}" type="number" min="1" max="30" value="${c.shelves}" style="width:70px" onchange="App.onLocConfigChange()">
+          <span class="chip-cat">รหัส QR: ${letter}1 … ${letter}${c.shelves}</span>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:8px;">
+          ${shelves.map(sh => `
+            <label class="small" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="checkbox" class="loc-shelf-check" data-letter="${letter}" data-shelf="${sh}" checked onchange="App.updateLocCount()"> ชั้น ${sh}
+            </label>`).join('')}
+        </div>
+      </div>`;
+  }).join('');
+  App.updateLocCount();
+};
+
+App.collectCabinets = function () {
+  const cabs = App.cabinets();
+  document.querySelectorAll('.loc-cab-name').forEach(inp => {
+    const ci = +inp.dataset.ci;
+    if (cabs[ci]) cabs[ci].name = (inp.value || '').trim() || cabs[ci].name;
+  });
+  document.querySelectorAll('.loc-cab-shelves').forEach(inp => {
+    const ci = +inp.dataset.ci;
+    if (cabs[ci]) cabs[ci].shelves = Math.max(1, (+inp.value || 1) | 0);
+  });
+  App.saveCabinets(cabs);
+  return cabs;
+};
+
+App.onLocConfigChange = function () { App.collectCabinets(); App.renderLocStickers(); };
+
+App.addCabinet = function () {
+  const cabs = App.cabinets();
+  cabs.push({ name: 'ตู้ ' + String.fromCharCode(65 + cabs.length), shelves: 1 });
+  App.saveCabinets(cabs);
+  App.renderLocStickers();
+};
+
+App.updateLocCount = function () {
+  const n = document.querySelectorAll('.loc-shelf-check:checked').length;
+  const el = document.getElementById('loc-count');
+  if (el) el.textContent = `เลือก ${n} สติกเกอร์`;
+};
+
+App.selectAllLoc = function (on) {
+  document.querySelectorAll('.loc-shelf-check').forEach(cb => { cb.checked = on; });
+  App.updateLocCount();
+};
+
+function selectedLocStickers() {
+  return Array.from(document.querySelectorAll('.loc-shelf-check:checked')).map(cb => ({
+    letter: cb.dataset.letter,
+    shelf: +cb.dataset.shelf,
+  }));
+}
+
+App.previewLocQr = function () {
+  const picked = selectedLocStickers();
+  if (!picked.length) { toast('กรุณาเลือกชั้นอย่างน้อย 1 รายการ', 'error'); return; }
+  if (typeof qrcode !== 'function') { toast('ไม่พบไลบรารีสร้าง QR (ต้องต่ออินเทอร์เน็ตครั้งแรก)', 'error'); return; }
+  const names = cabNameByLetter();
+  const area = document.getElementById('loc-preview-area');
+  const content = document.getElementById('loc-preview-content');
+  if (!area || !content) return;
+  area.classList.remove('hidden');
+  content.innerHTML = picked.map(p => {
+    const code = App.locCode(p.letter, p.shelf);
+    let img = '';
+    try { img = `<img src="${locQrDataUrl(code)}" style="width:32mm;height:32mm;">`; } catch (e) { /* ignore */ }
+    return `
+      <div style="border:1px dashed #bbb;background:#fff;padding:8px;text-align:center;width:80mm;box-sizing:border-box;">
+        ${img}
+        <div style="font-size:17pt;font-weight:800;margin-top:2px;line-height:1.15;">${esc(names[p.letter] || ('ตู้ ' + p.letter))}</div>
+        <div style="font-size:14pt;color:#222;">ชั้นที่ ${p.shelf}</div>
+        <div style="font-size:9pt;color:#888;">${code}</div>
+      </div>`;
+  }).join('');
+};
+
+App.printLocQr = function () {
+  const picked = selectedLocStickers();
+  if (!picked.length) { toast('กรุณาเลือกชั้นอย่างน้อย 1 รายการ', 'error'); return; }
+  if (typeof qrcode !== 'function') { toast('ไม่พบไลบรารีสร้าง QR (ต้องต่ออินเทอร์เน็ตครั้งแรก)', 'error'); return; }
+  const names = cabNameByLetter();
+  const paperEl = document.getElementById('loc-paper');
+  const roll = !paperEl || paperEl.value === 'roll';
+
+  const stickers = picked.map(p => {
+    const code = App.locCode(p.letter, p.shelf);
+    let img = '';
+    try { img = locQrDataUrl(code); } catch (e) { /* ignore */ }
+    return { code, name: names[p.letter] || ('ตู้ ' + p.letter), shelf: p.shelf, img };
+  });
+
+  let h = '<html><head><meta charset="utf-8"><title>พิมพ์ QR ตู้/ชั้นจัดเก็บ</title><style>';
+  h += 'body{font-family:Arial,sans-serif;margin:0;padding:0}';
+  h += '.sheet{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-sizing:border-box;overflow:hidden;width:80mm;height:50mm;padding:2mm}';
+  h += roll
+    ? '.sheet{page-break-after:always}.sheet:last-child{page-break-after:auto}'
+    : '.wrap{display:flex;flex-wrap:wrap;gap:3mm;padding:8mm}.sheet{border:1px dashed #bbb;page-break-inside:avoid}';
+  h += '.qr img{width:30mm;height:30mm}';
+  h += '.cab{font-size:17pt;font-weight:800;line-height:1.15}';
+  h += '.shelf{font-size:14pt;color:#222}';
+  h += '.code{font-size:8pt;color:#888}';
+  h += roll
+    ? '@media print{@page{size:80mm 50mm;margin:0}}'
+    : '@media print{@page{size:A4;margin:6mm}}';
+  h += '@media print{.no-print{display:none}}';
+  h += '</style></head><body>';
+  h += '<div class="no-print" style="text-align:center;padding:8px"><button onclick="window.print()">พิมพ์</button> <button onclick="window.close()">ปิด</button></div>';
+  if (!roll) h += '<div class="wrap">';
+  stickers.forEach(st => {
+    h += `<div class="sheet"><div class="qr"><img src="${st.img}"></div><div class="cab">${st.name}</div><div class="shelf">ชั้นที่ ${st.shelf}</div><div class="code">${st.code}</div></div>`;
+  });
+  if (!roll) h += '</div>';
+  h += '</body></html>';
+
+  try {
+    const w = window.open('', '_blank', 'width=800,height=600');
+    if (w && !w.closed) { w.document.write(h); w.document.close(); setTimeout(() => w.print(), 500); return; }
+  } catch (e) { /* ignore */ }
+  const iframe = document.createElement('iframe');
+  iframe.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;border:none;background:#fff';
+  iframe.srcdoc = h;
+  document.body.appendChild(iframe);
+  iframe.onload = () => { try { iframe.contentWindow.print(); } catch (e) { /* ignore */ } };
+  setTimeout(() => { if (iframe.parentNode) iframe.remove(); }, 5000);
+};
 
 App.filterBarcodeItems = function() {
   const category = document.getElementById('barcode-category').value;
