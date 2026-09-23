@@ -719,7 +719,7 @@ function handleScanResult(raw) {
   if (locM) {
     const names = cabNameByLetter();
     const cabName = names[locM[1]] || ('ตู้ ' + locM[1]);
-    App._locFilter = { letter: locM[1], shelf: +locM[2], cabName };
+    App._locFilter = { mode: 'cabinet', letter: locM[1], shelf: +locM[2], cabName };
     const search = document.getElementById('st-search');
     if (search) search.value = '';
     App.filterStock();
@@ -1024,18 +1024,22 @@ App.filterStock = function (params) {
   const groupParam = params && params.group ? params.group : '';
   const lowOnly = params && params.filter === 'low';
   const loc = App._locFilter || null;
-  const shelfPrefix = loc ? ('ตู้ ' + loc.letter + ' ') : '';
+  const shelfPrefix = loc && loc.mode !== 'none' ? ('ตู้ ' + loc.letter + ' ') : '';
   const stock = Store.getStock().filter(s =>
     (!q || s.name.toLowerCase().includes(q) || s.code.toLowerCase().includes(q) || (!loc && (s.location || '').toLowerCase().includes(q))) &&
     (!cat || s.category === cat) &&
     (!groupParam || s.group === groupParam) &&
     (!lowOnly || s.status !== 'ok') &&
-    (!loc || ((s.location || '').startsWith(shelfPrefix) && (!loc.shelf || (s.location || '').includes(' ชั้นที่ ' + loc.shelf))))
+    (!loc || (loc.mode === 'none'
+      ? !/^ตู้\s+[A-Za-z]/.test(String(s.location || ''))
+      : ((s.location || '').startsWith(shelfPrefix) && (!loc.shelf || (s.location || '').includes(' ชั้นที่ ' + loc.shelf)))))
   );
   const locBanner = document.getElementById('loc-filter-banner');
   if (locBanner) {
     locBanner.classList.toggle('hidden', !loc);
-    if (loc) document.getElementById('loc-filter-label').innerHTML = `กำลังแสดง: <strong>${esc(loc.cabName)}</strong>${loc.shelf ? ' — ชั้นที่ ' + loc.shelf : ' (ทั้งตู้)'}`;
+    if (loc) document.getElementById('loc-filter-label').innerHTML = loc.mode === 'none'
+      ? `กำลังแสดง: <strong>ไม่ระบุตู้</strong> (${stock.length} รายการ)`
+      : `กำลังแสดง: <strong>${esc(loc.cabName)}</strong>${loc.shelf ? ' — ชั้นที่ ' + loc.shelf : ' (ทั้งตู้)'}`;
   }
   const body = $('#st-body');
   if (!body) return;
@@ -2756,6 +2760,90 @@ function renderBarcode() {
   </div>`;
 }
 
+/* ============================================================
+   แผนผังคลัง — ตู้/ชั้นพร้อมจำนวนวัสดุ กดชั้นเพื่อกรองหน้าคงเหลือ
+   ============================================================ */
+function renderCabinets() {
+  const cabs = App.cabinets();
+  const stock = Store.getStock();
+  const letterCount = {};
+  stock.forEach(s => {
+    const m = String(s.location || '').match(/^ตู้\s+([A-Za-z])(?:\s+ชั้นที่\s*(\d+))?/);
+    if (m) {
+      const L = m[1].toUpperCase();
+      letterCount[L] = letterCount[L] || { total: 0, byShelf: {} };
+      letterCount[L].total++;
+      if (m[2]) letterCount[L].byShelf[m[2]] = (letterCount[L].byShelf[m[2]] || 0) + 1;
+    }
+  });
+
+  const cabCards = cabs.map((c, i) => {
+    const letter = cabLetter(c, i);
+    const info = letterCount[letter] || { total: 0, byShelf: {} };
+    const shelves = Array.from({ length: Math.max(1, c.shelves | 0) }, (_, k) => k + 1);
+    const shelfRows = shelves.map(sh => {
+      const n = info.byShelf[sh] || 0;
+      return `
+        <button type="button" class="cab-shelf-row" style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:1px solid var(--border,#e2e8f0);border-radius:10px;background:#fff;cursor:pointer;text-align:left;" onclick="App.goShelf('${letter}',${sh})">
+          <span style="width:34px;height:34px;border-radius:8px;background:${n ? 'var(--primary-light,#e0e7ff)' : '#f1f5f9'};color:${n ? 'var(--primary-dark,#4f46e5)' : '#94a3b8'};display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;">${sh}</span>
+          <span style="flex:1;">ชั้นที่ ${sh}</span>
+          <span class="chip-cat" style="${n ? '' : 'opacity:.5;'}">${n} รายการ</span>
+          ${n ? `<span style="color:var(--primary,#6366f1);display:inline-flex;">${icon('search', 15)}</span>` : ''}
+        </button>`;
+    }).join('');
+    const hasQr = App.locCode(letter, 1);
+    return `
+      <div class="card" style="margin-bottom:14px;">
+        <div class="card-head" style="align-items:center;">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="width:46px;height:46px;border-radius:12px;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:22pt;font-weight:700;">${letter}</span>
+            <div>
+              <h3>${esc(c.name)}</h3>
+              <p class="muted small">${c.shelves} ชั้น • ${info.total} รายการวัสดุ</p>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="App.goShelf('${letter}',0)">ดูทั้งตู้</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;">
+          ${shelfRows}
+        </div>
+      </div>`;
+  }).join('');
+
+  const unassigned = stock.filter(s => !/^ตู้\s+[A-Za-z]/.test(String(s.location || '')));
+  const unassignedCard = unassigned.length ? `
+    <div class="card card-muted">
+      <div class="card-head"><div><h3>ไม่ระบุตู้</h3><p class="muted small">วัสดุที่ยังไม่ได้ผูกตำแหน่งตู้/ชั้น (${unassigned.length} รายการ)</p></div></div>
+      <button type="button" class="btn btn-soft btn-sm" onclick="App.goNoCabinet()">ดูรายการเหล่านี้</button>
+    </div>` : '';
+
+  return `
+  <div class="card card-muted" style="margin-bottom:14px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      ${icon('info', 16)}
+      <span class="small">ตั้งชื่อ/จำนวนชั้นของตู้ และพิมพ์ QR Code ติดตู้ได้ที่</span>
+      <a href="#/barcode" class="btn btn-soft btn-sm">พิมพ์บาร์โค้ด</a>
+      <span class="muted small">— สแกน QR หน้าตู้แล้วจะมาหน้านี้อัตโนมัติ</span>
+    </div>
+  </div>
+  ${cabCards}
+  ${unassignedCard}`;
+}
+
+App.goShelf = function (letter, shelf) {
+  const names = cabNameByLetter();
+  App._locFilter = { mode: 'cabinet', letter, shelf: shelf || 0, cabName: names[letter] || ('ตู้ ' + letter) };
+  location.hash = '#/stock';
+  route();
+};
+
+App.goNoCabinet = function () {
+  App._locFilter = { mode: 'none' };
+  location.hash = '#/stock';
+  route();
+};
+
 function initBarcode() {
   App.filterBarcodeItems();
   App.renderLocStickers();
@@ -2851,6 +2939,21 @@ function locQrDataUrl(text) {
   return qr.createDataURL(4, 0);
 }
 
+/* ขนาดฟอนต์ชื่อตู้ — ตัวใหญ่เทียบเท่า QR (ย่อตามความยาวชื่อให้พอดีสติกเกอร์) */
+function locNameFontPt(name) {
+  const len = String(name || '').length;
+  if (len <= 3) return 84;
+  if (len <= 6) return 58;
+  if (len <= 10) return 36;
+  return 26;
+}
+
+/* ข้อความบนสติกเกอร์: ตัดคำว่า "ตู้" ออก เหลือตัวอักษร A, B, C, D */
+function locDisplayName(name, letter) {
+  const stripped = String(name || '').replace(/^ตู้\s*/u, '').trim();
+  return stripped || letter;
+}
+
 App.renderLocStickers = function () {
   const cabs = App.cabinets();
   const grid = document.getElementById('loc-sticker-list');
@@ -2929,14 +3032,17 @@ App.previewLocQr = function () {
   area.classList.remove('hidden');
   content.innerHTML = picked.map(p => {
     const code = App.locCode(p.letter, p.shelf);
+    const disp = locDisplayName(names[p.letter], p.letter);
     let img = '';
-    try { img = `<img src="${locQrDataUrl(code)}" style="width:32mm;height:32mm;">`; } catch (e) { /* ignore */ }
+    try { img = `<img src="${locQrDataUrl(code)}" style="width:32mm;height:32mm;flex:0 0 auto;">`; } catch (e) { /* ignore */ }
     return `
-      <div style="border:1px dashed #bbb;background:#fff;padding:8px;text-align:center;width:80mm;box-sizing:border-box;">
+      <div style="border:1px dashed #bbb;background:#fff;padding:6px;width:80mm;box-sizing:border-box;display:flex;align-items:center;justify-content:center;gap:3mm;overflow:hidden;">
         ${img}
-        <div style="font-size:17pt;font-weight:800;margin-top:2px;line-height:1.15;">${esc(names[p.letter] || ('ตู้ ' + p.letter))}</div>
-        <div style="font-size:14pt;color:#222;">ชั้นที่ ${p.shelf}</div>
-        <div style="font-size:9pt;color:#888;">${code}</div>
+        <div style="text-align:left;">
+          <div style="font-size:${locNameFontPt(disp)}pt;font-weight:700;white-space:nowrap;line-height:normal;margin-bottom:2pt;">${esc(disp)}</div>
+          <div style="font-size:19pt;font-weight:700;line-height:normal;">ชั้นที่ ${p.shelf}</div>
+          <div style="font-size:8pt;color:#888;line-height:normal;margin-top:1pt;">${code}</div>
+        </div>
       </div>`;
   }).join('');
 };
@@ -2953,19 +3059,21 @@ App.printLocQr = function () {
     const code = App.locCode(p.letter, p.shelf);
     let img = '';
     try { img = locQrDataUrl(code); } catch (e) { /* ignore */ }
-    return { code, name: names[p.letter] || ('ตู้ ' + p.letter), shelf: p.shelf, img };
+    return { code, name: locDisplayName(names[p.letter], p.letter), shelf: p.shelf, img };
   });
 
   let h = '<html><head><meta charset="utf-8"><title>พิมพ์ QR ตู้/ชั้นจัดเก็บ</title><style>';
-  h += 'body{font-family:Arial,sans-serif;margin:0;padding:0}';
-  h += '.sheet{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;box-sizing:border-box;overflow:hidden;width:80mm;height:50mm;padding:2mm}';
+  h += '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">';
+  h += 'body{font-family:\'Sarabun\',\'Segoe UI\',Tahoma,Arial,sans-serif;margin:0;padding:0}';
+  h += '.sheet{display:flex;align-items:center;justify-content:center;gap:2.5mm;text-align:left;box-sizing:border-box;overflow:hidden;width:80mm;height:50mm;padding:2mm}';
   h += roll
     ? '.sheet{page-break-after:always}.sheet:last-child{page-break-after:auto}'
     : '.wrap{display:flex;flex-wrap:wrap;gap:3mm;padding:8mm}.sheet{border:1px dashed #bbb;page-break-inside:avoid}';
-  h += '.qr img{width:30mm;height:30mm}';
-  h += '.cab{font-size:17pt;font-weight:800;line-height:1.15}';
-  h += '.shelf{font-size:14pt;color:#222}';
-  h += '.code{font-size:8pt;color:#888}';
+  h += '.qr img{width:32mm;height:32mm}';
+  h += '.info{line-height:normal}';
+  h += '.cab{font-weight:700;white-space:nowrap;line-height:normal;margin-bottom:2pt}';
+  h += '.shelf{font-size:19pt;font-weight:700;line-height:normal}';
+  h += '.code{font-size:7pt;color:#888;line-height:normal;margin-top:1pt}';
   h += roll
     ? '@media print{@page{size:80mm 50mm;margin:0}}'
     : '@media print{@page{size:A4;margin:6mm}}';
@@ -2974,7 +3082,8 @@ App.printLocQr = function () {
   h += '<div class="no-print" style="text-align:center;padding:8px"><button onclick="window.print()">พิมพ์</button> <button onclick="window.close()">ปิด</button></div>';
   if (!roll) h += '<div class="wrap">';
   stickers.forEach(st => {
-    h += `<div class="sheet"><div class="qr"><img src="${st.img}"></div><div class="cab">${st.name}</div><div class="shelf">ชั้นที่ ${st.shelf}</div><div class="code">${st.code}</div></div>`;
+    const fs = locNameFontPt(st.name);
+    h += `<div class="sheet"><div class="qr"><img src="${st.img}"></div><div class="info"><div class="cab" style="font-size:${fs}pt">${st.name}</div><div class="shelf">ชั้นที่ ${st.shelf}</div><div class="code">${st.code}</div></div></div>`;
   });
   if (!roll) h += '</div>';
   h += '</body></html>';
@@ -3613,6 +3722,7 @@ const Views = {
     init: () => App.addTxRow('issue'),
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
+  cabinets: { title: 'แผนผังคลัง', sub: 'ตำแหน่งตู้และชั้นจัดเก็บ — กดชั้นเพื่อดูวัสดุ', render: renderCabinets },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
   barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
   reorder: { title: 'รายการต้องสั่งเพิ่ม', sub: 'จัดรายการวัสดุที่ต้องสั่งซื้อเพิ่ม', render: renderReorder },
