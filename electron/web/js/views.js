@@ -864,6 +864,44 @@ App.scanToSelectItem = function (btn) {
   return scanner;
 };
 
+/* ---- ตั้งค่ากล้องสแกนให้เร็วขึ้น (มือถือใช้ตัวถอดรหัสเนทีฟ BarcodeDetector ของเครื่อง) ---- */
+function fastCameraConstraints() {
+  return {
+    facingMode: { ideal: 'environment' },
+    width: { ideal: 1920 },
+    height: { ideal: 1080 }
+  };
+}
+function fastScanConfig() {
+  return {
+    fps: 24,
+    qrbox: (vw, vh) => ({ width: Math.floor(vw * 0.85), height: Math.floor(vh * 0.55) }),
+    disableFlip: false,
+    useBarCodeDetectorIfSupported: true,
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.QR_CODE,
+      Html5QrcodeSupportedFormats.EAN_13,
+      Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128,
+      Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.UPC_A,
+      Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.ITF,
+      Html5QrcodeSupportedFormats.CODABAR,
+    ]
+  };
+}
+/* บังคับโฟกัสต่อเนื่อง (Android Chrome) — เครื่องที่ไม่รองรับจะข้ามเงียบ ๆ */
+function tuneCameraAfterStart(elId) {
+  try {
+    const v = document.querySelector('#' + elId + ' video');
+    const track = v && v.srcObject && v.srcObject.getVideoTracks ? v.srcObject.getVideoTracks()[0] : null;
+    if (track && track.getCapabilities && track.getCapabilities().focusMode) {
+      track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(() => {});
+    }
+  } catch (e) { /* ข้าม */ }
+}
+
 function startScannerForSelect(selectEl) {
   const el = document.getElementById('qr-reader-scan');
   if (!el) return;
@@ -877,24 +915,8 @@ function startScannerForSelect(selectEl) {
   el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
   
   window.__scanner.start(
-    { facingMode: 'environment' },
-    {
-      fps: 15,
-      qrbox: { width: 300, height: 150 },
-      aspectRatio: 1.5,
-      disableFlip: false,
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.CODABAR,
-      ]
-    },
+    { videoConstraints: fastCameraConstraints() },
+    fastScanConfig(),
     text => {
       App.stopScanner();
       closeModal();
@@ -913,7 +935,8 @@ function startScannerForSelect(selectEl) {
       toast(`พบวัสดุ: ${it.name} (${it.code})`);
     },
     () => {}
-  ).catch(err => {
+  ).then(() => tuneCameraAfterStart('qr-reader-scan'))
+  .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
     el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง</span></div>`;
@@ -933,27 +956,12 @@ function startScanner() {
   el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
   
   window.__scanner.start(
-    { facingMode: 'environment' },
-    {
-      fps: 15,
-      qrbox: { width: 300, height: 150 },
-      aspectRatio: 1.5,
-      disableFlip: false,
-      formatsToSupport: [
-        Html5QrcodeSupportedFormats.QR_CODE,
-        Html5QrcodeSupportedFormats.EAN_13,
-        Html5QrcodeSupportedFormats.EAN_8,
-        Html5QrcodeSupportedFormats.CODE_128,
-        Html5QrcodeSupportedFormats.CODE_39,
-        Html5QrcodeSupportedFormats.UPC_A,
-        Html5QrcodeSupportedFormats.UPC_E,
-        Html5QrcodeSupportedFormats.ITF,
-        Html5QrcodeSupportedFormats.CODABAR,
-      ]
-    },
+    { videoConstraints: fastCameraConstraints() },
+    fastScanConfig(),
     text => { App.stopScanner(); closeModal(); handleScanResult(text); },
     () => { /* ข้าม error รายเฟรม */ }
-  ).catch(err => {
+  ).then(() => tuneCameraAfterStart('qr-reader'))
+  .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
     el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง หรือใช้เครื่องสแกนบาร์โค้ดแทน</span></div>`;
