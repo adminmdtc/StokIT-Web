@@ -17,8 +17,11 @@
     v.title = 'เวอร์ชันโปรแกรม';
     v.style.cssText = 'margin-left:6px;padding:2px 9px;border-radius:999px;background:rgba(148,163,184,.15);color:#94a3b8;font-size:11.5px;font-weight:600;white-space:nowrap;';
     const apply = (ver) => { v.textContent = 'v' + ver; chip.parentElement.insertBefore(v, chip.nextSibling); };
+    const fromUA = () => { const m = (navigator.userAgent || '').match(/it-stock\/([\d.]+)/i); return m ? m[1] : null; };
     if (window.electronUpdater && window.electronUpdater.isDesktop) {
-      window.electronUpdater.version().then((ver) => apply(ver || '?')).catch(() => apply('?'));
+      window.electronUpdater.version()
+        .then((ver) => apply(ver || fromUA() || '?'))
+        .catch(() => apply(fromUA() || '?'));
     } else {
       v.textContent = 'เว็บ';
       chip.parentElement.insertBefore(v, chip.nextSibling);

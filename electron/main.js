@@ -13,7 +13,13 @@ try {
 }
 
 let mainWindow;
-let updater;
+let updater = null;
+try {
+  // โหลดตั้งแต่เปิดแอป เพื่อให้ IPC updater:* (version/check/download/install) พร้อมใช้ทันที
+  updater = require('./updater');
+} catch (e) {
+  console.warn('updater module not available:', e.message);
+}
 
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -78,7 +84,7 @@ function createWindow() {
 
 function checkUpdate() {
   if (!updater) {
-    updater = require('./updater');
+    try { updater = require('./updater'); } catch (e) { console.warn('updater load failed:', e.message); return; }
   }
   updater.checkForUpdates(mainWindow);
 }
