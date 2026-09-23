@@ -1642,6 +1642,8 @@ function renderDb() {
   const url = localStorage.getItem('it_stock_db_server_url') || 'http://localhost:3333';
   const enabled = !!localStorage.getItem('it_stock_db_server_url.enabled');
   const mysqlReady = typeof MySQLBackend !== 'undefined';
+  const sbLive = typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled;
+  const sbUrl = sbLive ? SupabaseBackend.url : '';
   return `
   <div class="card">
     <div class="card-head"><div><h3>🗄️ การเชื่อมต่อฐานข้อมูล</h3>
@@ -1649,7 +1651,9 @@ function renderDb() {
     ${mysqlReady ? `
     <div class="db-open-wrap">
       <button class="btn btn-primary btn-lg" onclick="App.openDbWindow()">${icon('box', 18)} เปิดหน้าต่างตั้งค่าฐานข้อมูล</button>
-      <span class="muted small">เซิร์ฟเวอร์ปัจจุบัน: <strong>${esc(url)}</strong>${enabled ? ' • เปิดใช้งานการซิงค์แล้ว' : ' • ยังไม่เปิดใช้งาน'}</span>
+      ${sbLive
+        ? `<span class="muted small">โหมดปัจจุบัน: <strong>☁️ Supabase Cloud</strong> • ซิงค์อัตโนมัติทำงานอยู่ • <strong>${esc(sbUrl)}</strong></span>`
+        : `<span class="muted small">เซิร์ฟเวอร์ปัจจุบัน: <strong>${esc(url)}</strong>${enabled ? ' • เปิดใช้งานการซิงค์แล้ว' : ' • ยังไม่เปิดใช้งาน'}</span>`}
     </div>
     ` : `
     <div class="muted" style="padding:10px;background:var(--bg-secondary);border-radius:8px">
@@ -1666,16 +1670,20 @@ function renderSettings() {
   const dbUrl = localStorage.getItem('it_stock_db_server_url') || 'http://localhost:3333';
   const dbEnabled = !!localStorage.getItem('it_stock_db_server_url.enabled');
   const mysqlReady = typeof MySQLBackend !== 'undefined';
+  const sbLive = typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled;
+  const sbUrl = sbLive ? SupabaseBackend.url : '';
   
   return `
 
   <div class="card">
     <div class="card-head"><div><h3>🗄️ ตั้งค่าฐานข้อมูล</h3>
-      <p class="muted small">เชื่อมต่อ MySQL Server ผ่าน IT Stock Server — เปิดหน้าต่างตั้งค่าเพื่อทดสอบ / บันทึก / สร้างฐานข้อมูลใหม่</p></div></div>
+      <p class="muted small">เชื่อมต่อฐานข้อมูลเพื่อซิงค์ระหว่างเครื่อง — เปิดหน้าต่างตั้งค่าเพื่อทดสอบ / บันทึก / สร้างฐานข้อมูลใหม่</p></div></div>
     ${mysqlReady ? `
     <div class="db-open-wrap">
       <button class="btn btn-primary btn-lg" onclick="App.openDbWindow()">${icon('box', 18)} เปิดหน้าต่างตั้งค่าฐานข้อมูล</button>
-      <span class="muted small">เซิร์ฟเวอร์ปัจจุบัน: <strong>${esc(dbUrl)}</strong>${dbEnabled ? ' • เปิดใช้งานการซิงค์แล้ว' : ' • ยังไม่เปิดใช้งาน'}</span>
+      ${sbLive
+        ? `<span class="muted small">โหมดปัจจุบัน: <strong>☁️ Supabase Cloud</strong> • ซิงค์อัตโนมัติทำงานอยู่ • <strong>${esc(sbUrl)}</strong></span>`
+        : `<span class="muted small">เซิร์ฟเวอร์ปัจจุบัน: <strong>${esc(dbUrl)}</strong>${dbEnabled ? ' • เปิดใช้งานการซิงค์แล้ว' : ' • ยังไม่เปิดใช้งาน'}</span>`}
     </div>
     ` : `
     <div class="muted" style="padding:10px;background:var(--bg-secondary);border-radius:8px">
@@ -3303,6 +3311,6 @@ const Views = {
   barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
   reorder: { title: 'รายการต้องสั่งเพิ่ม', sub: 'จัดรายการวัสดุที่ต้องสั่งซื้อเพิ่ม', render: renderReorder },
   users: { title: 'ผู้ใช้งาน', sub: 'จัดการบัญชีและสิทธิ์การใช้งาน', render: renderUsers },
-  db: { title: 'ฐานข้อมูล', sub: 'เชื่อมต่อ MySQL Server สำหรับซิงค์ข้อมูล', render: renderDb },
+  db: { title: 'ฐานข้อมูล', sub: 'เชื่อมต่อฐานข้อมูลสำหรับซิงค์ข้อมูลระหว่างเครื่อง', render: renderDb },
   settings: { title: 'ตั้งค่า', sub: 'ตั้งค่าระบบแจ้งเตือนและการเชื่อมต่อ', render: renderSettings },
 };
