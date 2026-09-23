@@ -237,27 +237,58 @@ const SupabaseBackend = {
      ============================================================ */
   _rtStream: null,
   _rtTables: ['it_items', 'it_transactions', 'it_users', 'it_reorder'],
+  _rtRef: 0,
+  _rtRetry: 0,
+  _rtHB: null,
+  _rtClosed: false,
 
   startRealtime(onChange) {
     this.stopRealtime();
     if (!this.url || !this.key || typeof onChange !== 'function') return;
-    const topics = this._rtTables.map(t => 'realtime:public:' + t).join(',');
-    const url = this.url + '/realtime/v1/stream?topics=' + encodeURIComponent(topics) + '&apikey=' + encodeURIComponent(this.key);
-    let es;
-    try { es = new EventSource(url); } catch (e) { console.error('Realtime open error:', e); return; }
-    this._rtStream = es;
-    es.onmessage = (ev) => {
-      try {
-        const msg = JSON.parse(ev.data);
-        const topic = msg.topic || '';
-        const table = topic.split(':').pop();
-        if (this._rtTables.includes(table)) onChange({ table, event: (msg.event || 'UPDATE'), commit: msg.commit_timestamp || null });
-      } catch (e) { /* ข้อความที่ parse ไม่ได้ ข้าม */ }
+    this._rtClosed = false;
+    const self = this;
+    /* ใช้ WebSocket (Phoenix protocol) — endpoint /realtime/v1/stream แบบ SSE
+       รับเฉพาะ key แบบ JWT ยุคเก่า แต่ key ใหม่ (sb_publishable_...) ใช้ได้กับ websocket */
+    const wsUrl = this.url.replace(/^http/, 'ws') + '/realtime/v1/websocket?apikey=' + encodeURIComponent(this.key);
+    let ws;
+    try { ws = new WebSocket(wsUrl); } catch (e) { console.error('Realtime open error:', e); return; }
+    this._rtStream = ws;
+
+    const send = (obj) => { try { ws.send(JSON.stringify(obj)); } catch (e) { /* ignore */ } };
+    const joinTopic = (table) => {
+      self._rtRef += 1;
+      send({ topic: 'realtime:public:' + table, event: 'phx_join', ref: String(self._rtRef), payload: { config: { postgres_changes: [{ event: '*', schema: 'public', table: table }] } } });
     };
-    es.onerror = () => { /* EventSource reconnect เอง */ };
+
+    ws.onopen = () => {
+      self._rtRetry = 0;
+      self._rtTables.forEach(joinTopic);
+      if (self._rtHB) clearInterval(self._rtHB);
+      self._rtHB = setInterval(() => { self._rtRef += 1; send({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: String(self._rtRef) }); }, 30000);
+    };
+
+    ws.onmessage = (ev) => {
+      let msg; try { msg = JSON.parse(ev.data); } catch (e) { return; }
+      const topic = String(msg.topic || '');
+      const table = topic.split(':').pop();
+      if (msg.event === 'postgres_changes' && self._rtTables.includes(table)) {
+        onChange({ table, event: (msg.event || 'UPDATE'), commit: null });
+      }
+    };
+
+    ws.onclose = () => {
+      if (self._rtHB) { clearInterval(self._rtHB); self._rtHB = null; }
+      if (self._rtClosed) return;
+      /* ต่อใหม่เอง — หน่วงเพิ่มทีละขั้น สูงสุด 30 วิ */
+      self._rtRetry += 1;
+      const delay = Math.min(30000, 3000 * self._rtRetry);
+      setTimeout(() => { if (!self._rtClosed) self.startRealtime(onChange); }, delay);
+    };
   },
 
   stopRealtime() {
+    this._rtClosed = true;
+    if (this._rtHB) { clearInterval(this._rtHB); this._rtHB = null; }
     if (this._rtStream) {
       try { this._rtStream.close(); } catch (e) { /* ignore */ }
       this._rtStream = null;
