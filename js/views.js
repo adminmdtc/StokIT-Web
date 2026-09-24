@@ -2887,10 +2887,225 @@ function renderCabinets() {
       <span class="small">ตั้งชื่อ/จำนวนชั้นของตู้ และพิมพ์ QR Code ติดตู้ได้ที่</span>
       <a href="#/barcode" class="btn btn-soft btn-sm">พิมพ์บาร์โค้ด</a>
       <button type="button" class="btn btn-primary btn-sm" onclick="App.openCabinetScanner()">${icon('camera', 15)} สแกน QR หน้าตู้</button>
+      <button type="button" class="btn btn-soft btn-sm" onclick="App.stockCountStart()">${icon('clipboard-list', 15)} เริ่มนับสต๊อก</button>
     </div>
   </div>
   ${cabCards}
   ${unassignedCard}`;
+}
+
+/* ============================================================
+   โหมดนับสต๊อก (Stock Count) — สแกน QR ป้ายชั้น (LOC:xn) เพื่อเลือกชั้นปัจจุบัน
+   แล้วสแกนบาร์โค้ดวัสดุสะสมจำนวน จบรอบแล้วเทียบกับสต๊อกในระบบ + ส่งออก Excel/PDF
+   คง state ไว้ใน App._stockCount ตลอดรอบ (สลับหน้า/ปิดโปรแกรมไม่หาย)
+   ============================================================ */
+App._stockCount = { active: false, locLabel: '', locLetter: '', locShelf: 0, entries: {} };
+
+function renderStockCount() {
+  const S = App._stockCount;
+  const stock = Store.getStock();
+  const stockMap = {};
+  stock.forEach(s => { stockMap[s.id] = s; });
+  const stockByCode = {};
+  stock.forEach(s => { stockByCode[String(s.code || '').toUpperCase()] = s; });
+
+  const order = Object.keys(S.entries).sort((a, b) => S.entries[a].ts - S.entries[b].ts);
+  const scannedIds = {};
+  Object.values(S.entries).forEach(e => { scannedIds[e.itemId] = true; });
+  let totalScanned = 0, matchCount = 0, diffCount = 0, unknownCount = 0;
+  const rows = order.map(key => {
+    const e = S.entries[key];
+    const it = stockMap[e.itemId];
+    totalScanned += e.count;
+    if (!it) { unknownCount++;
+      return `<tr><td class="td-mono">${esc(key)}</td><td>${esc(e.name)} <span class="chip-cat" style="opacity:.6">ไม่พบในระบบ</span></td><td></td><td class="num"><b>${e.count}</b></td><td></td><td class="actions"><button class="btn-icon danger" onclick="App.stockCountRemove('${esc(key)}')" title="ลบรายการนี้">${icon('trash', 15)}</button></td></tr>`;
+    }
+    const sys = it.sysQty || 0, diff = e.count - sys;
+    if (diff === 0) matchCount++; else diffCount++;
+    const chip = diff === 0
+      ? '<span class="chip-cat" style="background:#dcfce7;color:#166534">ตรง</span>'
+      : `<span class="chip-cat" style="background:${diff > 0 ? '#dbeafe;color:#1e40af' : '#fee2e2;color:#991b1b'}">${diff > 0 ? '+' : ''}${diff}</span>`;
+    return `<tr><td class="td-mono">${esc(it.code)}</td><td>${esc(it.name)}<div class="muted small">${esc(it.location) || '—'}</div></td><td>${esc(it.unit)}</td><td class="num"><b>${e.count}</b></td><td class="num">${sys}</td><td>${chip}</td><td class="actions"><button class="btn-icon danger" onclick="App.stockCountRemove('${esc(key)}')" title="ลบรายการนี้">${icon('trash', 15)}</button></td></tr>`;
+  }).join('') || `<tr><td colspan="7"><div class="empty">${icon('scan-line', 34)}<span>ยังไม่มีรายการ — กด "สแกนเพิ่มของ" เพื่อเริ่ม</span></div></td></tr>`;
+
+  const sysTotal = stock.filter(s => scannedIds[s.id]).reduce((a, s) => a + (s.sysQty || 0), 0);
+
+  const scannedRowsHtml = rows;
+  return `
+  <div class="card" style="margin-bottom:14px;">
+    <div class="card-head" style="align-items:center;">
+      <div><h3>โหมดนับสต๊อก</h3><p class="muted small">สแกน QR ป้ายชั้นเพื่อระบุตำแหน่ง แล้วสแกนบาร์โค้ดวัสดุสะสมจำนวน</p></div>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" onclick="App.stockCountScan()">${icon('camera', 16)} สแกนเพิ่มของ</button>
+      <button class="btn btn-outline" onclick="App.stockCountEnd()">${icon('check', 16)} จบรอบนับ</button>
+    </div>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:0 15px 12px;">
+      <span class="chip-cat" id="sc-loc-chip" style="background:var(--primary-light,#e0e7ff);color:var(--primary-dark,#4f46e5)">${S.locLabel ? '📍 ' + esc(S.locLabel) : '📍 ยังไม่เลือกชั้น'}</span>
+      <span class="small muted" id="sc-summary">สแกนแล้ว <b>${Object.keys(S.entries).length}</b> รายการ • รวม <b>${fmtQty(totalScanned)}</b> ชิ้น</span>
+      <span class="chip-cat">ตรง ${matchCount}</span>
+      <span class="chip-cat" style="background:#fee2e2;color:#991b1b">ต่าง ${diffCount}</span>
+      ${unknownCount ? `<span class="chip-cat" style="background:#fef3c7;color:#92400e">ไม่พบในระบบ ${unknownCount}</span>` : ''}
+      <span class="small muted">จำนวนตามระบบรวม ${fmtQty(sysTotal)} ชิ้น</span>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-head"><div><h3>รายการที่นับได้</h3><p class="muted small">สแกนซ้ำรายการเดิม = เพิ่มจำนวน (กันซ้ำ 3 วินาที ป้องกันกล้องค้าง)</p></div></div>
+    <div class="table-wrap">
+      <table class="list"><thead><tr>
+        <th>รหัส</th><th>รายการ</th><th>หน่วย</th><th class="num">นับได้</th><th class="num">ระบบ</th><th>เทียบ</th><th></th>
+      </tr></thead>
+      <tbody id="sc-body">${scannedRowsHtml}</tbody></table>
+    </div>
+  </div>`;
+}
+
+function initStockCount() {
+  App.renderStockCountSummary();
+}
+
+/* อัปเดตชิปตำแหน่ง + สรุป หลังสแกน (ไม่รีเรนเดอร์ทั้งหน้า เพื่อไม่ตัดกล้อง) */
+App.renderStockCountSummary = function () {
+  const S = App._stockCount;
+  const chip = document.getElementById('sc-loc-chip');
+  if (chip) chip.textContent = S.locLabel ? '📍 ' + S.locLabel : '📍 ยังไม่เลือกชั้น';
+  const totalScanned = Object.values(S.entries).reduce((a, e) => a + e.count, 0);
+  const sm = document.getElementById('sc-summary');
+  if (sm) sm.innerHTML = `สแกนแล้ว <b>${Object.keys(S.entries).length}</b> รายการ • รวม <b>${fmtQty(totalScanned)}</b> ชิ้น`;
+};
+
+/* รีเรนเดอร์หน้านับสต๊อกทั้งหน้า (ใช้หลังเพิ่ม/ลบรายการ — โมดัลกล้องอยู่คนละ element จึงไม่ถูกตัด) */
+App.renderStockCountRows = function () {
+  if ((location.hash || '').startsWith('#/stockcount')) route();
+};
+
+/* กดจากหน้าแผนผัง — เริ่มรอบใหม่ (สแกนป้ายชั้นก่อน) */
+App.stockCountStart = function () {
+  App._stockCount = { active: true, locLabel: '', locLetter: '', locShelf: 0, entries: {} };
+  location.hash = '#/stockcount';
+  route();
+  App.stockCountScan();
+};
+
+/* ---------- สแกนเนอร์โหมดนับ — เปิดค้างไว้ อ่านต่อเนื่อง ---------- */
+App.stockCountScan = function () {
+  unlockAudioForScan();
+  const modal = openModal(`
+    <div class="modal-head"><h3>สแกน — โหมดนับสต๊อก</h3><button class="btn-icon" onclick="App.stopScanner();closeModal()" title="ปิด">${icon('x', 18)}</button></div>
+    <div class="modal-body">
+      <div id="sc-loc-note" class="scanner-hint" style="color:var(--primary-dark,#4f46e5);font-weight:600">${icon('map-pin', 16)} เริ่มด้วยการสแกน QR ป้ายชั้น (LOC:xn) เพื่อระบุตำแหน่ง</div>
+      <div id="qr-reader-sc" class="qr-reader"></div>
+      <div class="scanner-hint">${icon('info', 16)} สแกนป้ายชั้น = เปลี่ยนตำแหน่ง • สแกนบาร์โค้ดวัสดุ = นับเพิ่ม • ระบบบี๊บยืนยันทุกครั้ง</div>
+    </div>`, { noDismiss: true });
+  startStockCountScanner();
+  return modal;
+};
+
+App.stockCountHandleScan = function (raw) {
+  const code = String(raw || '').trim().toUpperCase();
+  if (!code) return;
+  const now = Date.now();
+  if (App._lastCabScan.code === code && now - App._lastCabScan.t < 3000) return; /* กันอ่านซ้ำ */
+  App._lastCabScan = { code, t: now };
+
+  const S = App._stockCount;
+  const locM = code.match(/^LOC[:\-]?([A-Z])(\d+)$/);
+  if (locM) {
+    const names = cabNameByLetter();
+    S.locLabel = `${names[locM[1]] || ('ตู้ ' + locM[1])} ชั้นที่ ${locM[2]}`;
+    S.locLetter = locM[1]; S.locShelf = +locM[2];
+    App.renderStockCountSummary();
+    playScanBeep();
+    toast('📍 เลือกชั้น: ' + S.locLabel + ' — สแกนบาร์โค้ดวัสดุต่อได้เลย', 'info');
+    return;
+  }
+
+  const it = Store.items().find(i => i.code.toUpperCase() === code || i.id === code);
+  const key = it ? it.id : code;
+  const e = S.entries[key];
+  if (e) {
+    e.count++; e.ts = now; e.lastDelta = 1;
+    playScanBeep();
+    App.renderStockCountSummary();
+    App.renderStockCountRows();
+    toast(`+1 ${e.name} (รวม ${e.count})`);
+  } else {
+    S.entries[key] = { itemId: it ? it.id : '', code: code, name: it ? it.name : code, unit: it ? (it.unit || '') : '', count: 1, ts: now, lastDelta: 1 };
+    playScanBeep();
+    App.renderStockCountSummary();
+    App.renderStockCountRows();
+    toast(it ? `เพิ่ม: ${it.name} (${it.code})` : `ไม่พบในระบบ: ${code} (บันทึกไว้ให้)`, it ? 'success' : 'error');
+  }
+};
+
+App.stockCountRemove = function (key) {
+  delete App._stockCount.entries[key];
+  route();
+};
+
+App.stockCountEnd = function () {
+  const S = App._stockCount;
+  if (!Object.keys(S.entries).length) { toast('ยังไม่มีรายการที่นับ', 'error'); return; }
+  openModal(modalShell('สรุปรอบนับสต๊อก',
+    `<div class="form-grid">
+      <p class="muted small">ตำแหน่งล่าสุด: <strong>${S.locLabel ? esc(S.locLabel) : 'ไม่ระบุ'}</strong> • รวม ${Object.keys(S.entries).length} รายการ</p>
+      <p class="muted small">กด "จบรอบและส่งออก" เพื่อดาวน์โหลดรายงานเทียบกับสต๊อกในระบบ (Excel + PDF) แล้วเริ่มรอบใหม่</p>
+    </div>`,
+    `<button class="btn btn-ghost" onclick="closeModal()">ยังไม่จบ</button>
+     <button class="btn btn-primary" onclick="App.stockCountFinish()">${icon('download', 16)} จบรอบและส่งออก</button>`));
+};
+
+App.stockCountFinish = function () {
+  const S = App._stockCount;
+  const stock = Store.getStock();
+  const stockMap = {};
+  stock.forEach(s => { stockMap[s.id] = s; });
+  const order = Object.keys(S.entries).sort((a, b) => S.entries[a].ts - S.entries[b].ts);
+  const cols = ['รหัส', 'รายการ', 'ตำแหน่ง (ตามป้ายชั้น)', 'หน่วย', 'นับได้', 'ระบบ', 'ผลต่าง'];
+  let total = 0;
+  const rows = order.map(k => {
+    const e = S.entries[k];
+    const it = stockMap[e.itemId];
+    const sys = it ? (it.sysQty || 0) : 0;
+    total += e.count;
+    return [e.code, e.name, S.locLabel || '', e.unit || (it ? it.unit : ''), e.count, sys, e.count - sys];
+  });
+  rows.push(['', 'รวมทั้งหมด', '', '', total, '', '']);
+  const stamp = todayStr();
+  const fname = `นับสต๊อก_${S.locLabel ? S.locLabel.replace(/\s+/g, '') : 'ไม่ระบุตำแหน่ง'}_${stamp}`;
+  closeModal();
+  exportExcel(fname + '.xlsx', cols, rows, 'นับสต๊อก');
+  setTimeout(() => { try { exportPDF('รายงานนับสต๊อก', 'ตำแหน่ง: ' + (S.locLabel || 'ไม่ระบุ') + ' — ' + stamp, cols, rows, {}); } catch (e) { /* ignore */ } }, 600);
+  toast('ส่งออกรายงานนับสต๊อกแล้ว', 'success');
+  App._stockCount = { active: false, locLabel: '', locLetter: '', locShelf: 0, entries: {} };
+  route();
+};
+
+App.stockCountCancel = function () {
+  if (!Object.keys(App._stockCount.entries).length) { App._stockCount.active = false; return; }
+  App._stockCount.active = false;
+};
+
+/* ---------- สแกนเนอร์ของโหมดนับ (ต่อเนื่อง — ไม่ปิดเอง) ---------- */
+function startStockCountScanner() {
+  const el = document.getElementById('qr-reader-sc');
+  if (!el) return;
+  if (typeof Html5Qrcode !== 'function') {
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>ไม่พบไลบรารีสแกน QR (ออฟไลน์)</span></div>`;
+    return;
+  }
+  window.__scanner = new Html5Qrcode('qr-reader-sc');
+  el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
+  window.__scanner.start(
+    { facingMode: 'environment' },
+    fastScanConfig(),
+    text => App.stockCountHandleScan(text),
+    () => { /* ข้าม error รายเฟรม */ }
+  ).then(() => tuneCameraAfterStart('qr-reader-sc'))
+  .catch(err => {
+    console.error('Scanner error:', err);
+    window.__scanner = null;
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>${cameraErrorHint(err)}</span></div>`;
+  });
 }
 
 /* กดชั้นบนแผนผัง → ไปหน้าคงเหลือกรองเฉพาะชั้นนั้น
@@ -3876,6 +4091,7 @@ const Views = {
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   cabinets: { title: 'แผนผังคลัง', sub: 'ตำแหน่งตู้และชั้นจัดเก็บ — กดชั้นเพื่อดูวัสดุ', render: renderCabinets },
+  stockcount: { title: 'นับสต๊อก', sub: 'สแกน QR ป้ายชั้น + บาร์โค้ดวัสดุ — สะสมจำนวนแล้วส่งออกรายงาน', render: renderStockCount, init: initStockCount, exit: () => { App.stockCountCancel(); } },
   reports: { title: 'รายงาน', sub: 'ออกรายงานและส่งออกเป็น Excel / PDF', render: renderReports, init: renderReportPreview },
   barcode: { title: 'พิมพ์บาร์โค้ด', sub: 'พิมพ์บาร์โค้ดสำหรับวัสดุ', render: renderBarcode, init: initBarcode },
   reorder: { title: 'รายการต้องสั่งเพิ่ม', sub: 'จัดรายการวัสดุที่ต้องสั่งซื้อเพิ่ม', render: renderReorder },

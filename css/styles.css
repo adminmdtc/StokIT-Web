@@ -358,7 +358,7 @@ select.input option { padding: 10px 14px; font-size: 14px; }
 .brand-name { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 0.02em; }
 .brand-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
-.nav { flex: 1; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; }
+.nav { flex: 1; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
 .nav-item {
   display: flex; align-items: center; gap: 14px; padding: 13px 16px; 
   border-radius: var(--radius-sm); color: #cbd5e1; text-decoration: none; 
