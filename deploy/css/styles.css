@@ -1005,6 +1005,14 @@ text.tx-tab, button.tx-tab { line-height: 1; }
 }
 .row-flash { animation: rowFlash 1.6s ease; }
 
+/* ชั้นบนแผนผังคลังที่เพิ่งสแกน QR — กระพริบเหลืองแล้วค้างขอบน้ำเงิน */
+@keyframes shelfFlash {
+  0%, 100% { background: #fff; box-shadow: none; }
+  25%, 75% { background: #fef08a; box-shadow: 0 0 0 3px rgba(234, 179, 8, .45); }
+}
+.cab-shelf-row.shelf-flash { animation: shelfFlash 1.7s ease 2; }
+.cab-shelf-row.shelf-focus { border-color: var(--primary, #6366f1) !important; box-shadow: 0 0 0 3px rgba(99, 102, 241, .18); background: var(--primary-light, #e0e7ff); }
+
 /* ============ Label Sheet ============ */
 .label-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
 .label-sheet {

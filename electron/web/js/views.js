@@ -2801,6 +2801,7 @@ function renderBarcode() {
 function renderCabinets() {
   const cabs = App.cabinets();
   const stock = Store.getStock();
+  const lastLoc = App._scanFocusLoc || ''; /* ชั้นที่เพิ่งสแกน — ไฮไลต์ค้างไว้จนกว่าจะสแกนใหม่ */
   const letterCount = {};
   stock.forEach(s => {
     const m = String(s.location || '').match(/^ตู้\s+([A-Za-z])(?:\s+ชั้นที่\s*(\d+))?/);
@@ -2819,7 +2820,7 @@ function renderCabinets() {
     const shelfRows = shelves.map(sh => {
       const n = info.byShelf[sh] || 0;
       return `
-        <button type="button" class="cab-shelf-row" style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:1px solid var(--border,#e2e8f0);border-radius:10px;background:#fff;cursor:pointer;text-align:left;" onclick="App.goShelf('${letter}',${sh})">
+        <button type="button" class="cab-shelf-row ${lastLoc === letter + sh ? 'shelf-focus' : ''}" data-loc="${letter}${sh}" style="display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:1px solid var(--border,#e2e8f0);border-radius:10px;background:${lastLoc === letter + sh ? 'var(--primary-light,#e0e7ff)' : '#fff'};cursor:pointer;text-align:left;" onclick="App.goShelf('${letter}',${sh})">
           <span style="width:34px;height:34px;border-radius:8px;background:${n ? 'var(--primary-light,#e0e7ff)' : '#f1f5f9'};color:${n ? 'var(--primary-dark,#4f46e5)' : '#94a3b8'};display:inline-flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;">${sh}</span>
           <span style="flex:1;">ชั้นที่ ${sh}</span>
           <span class="chip-cat" style="${n ? '' : 'opacity:.5;'}">${n} รายการ</span>
@@ -2828,7 +2829,7 @@ function renderCabinets() {
     }).join('');
     const hasQr = App.locCode(letter, 1);
     return `
-      <div class="card" style="margin-bottom:14px;">
+      <div class="card" style="margin-bottom:14px;" data-cabinet="${letter}">
         <div class="card-head" style="align-items:center;">
           <div style="display:flex;align-items:center;gap:12px;">
             <span style="width:46px;height:46px;border-radius:12px;background:var(--primary);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:22pt;font-weight:700;">${letter}</span>
@@ -2859,25 +2860,114 @@ function renderCabinets() {
       ${icon('info', 16)}
       <span class="small">ตั้งชื่อ/จำนวนชั้นของตู้ และพิมพ์ QR Code ติดตู้ได้ที่</span>
       <a href="#/barcode" class="btn btn-soft btn-sm">พิมพ์บาร์โค้ด</a>
-      <span class="muted small">— สแกน QR หน้าตู้แล้วจะมาหน้านี้อัตโนมัติ</span>
+      <button type="button" class="btn btn-primary btn-sm" onclick="App.openCabinetScanner()">${icon('camera', 15)} สแกน QR หน้าตู้</button>
     </div>
   </div>
   ${cabCards}
   ${unassignedCard}`;
 }
 
-App.goShelf = function (letter, shelf) {
+/* กดชั้นบนแผนผัง → ไปหน้าคงเหลือกรองเฉพาะชั้นนั้น
+   ถ้ามาจากการสแกน (focus) จะไฮไลต์การ์ดชั้นบนแผนผังก่อน แล้วเลื่อนไปที่ชั้นนั้น */
+App.goShelf = function (letter, shelf, opts) {
   const names = cabNameByLetter();
   App._locFilter = { mode: 'cabinet', letter, shelf: shelf || 0, cabName: names[letter] || ('ตู้ ' + letter) };
+  if (opts && opts.focus) {
+    App._scanFocusLoc = letter + (shelf || 1);
+    highlightShelfOnMap(letter, shelf || 1);
+    if (shelf) {
+      const card = document.querySelector(`.cab-shelf-row[data-loc="${App._scanFocusLoc}"]`);
+      if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+    return;
+  }
   location.hash = '#/stock';
   route();
 };
+
+/* ไฮไลต์ชั้นที่สแกนบนแผนผัง (แถบเหลืองกระพริบ 3 วินาที) */
+function highlightShelfOnMap(letter, shelf) {
+  document.querySelectorAll('.cab-shelf-row').forEach(el => {
+    el.classList.remove('shelf-flash', 'shelf-focus');
+    el.style.background = '#fff'; /* เคลียร์พื้นหลังค้างของแถวที่เคยถูกเน้น */
+  });
+  const card = document.querySelector(`.cab-shelf-row[data-loc="${letter}${shelf}"]`);
+  if (!card) return;
+  card.style.background = ''; /* ให้ CSS class (แฟลช/โฟกัส) จัดการแทน */
+  card.classList.add('shelf-flash');
+  /* timer เก่าต้องไม่ไฮไลต์การ์ดที่ถูกสแกนทับด้วยป้ายใหม่ */
+  setTimeout(() => {
+    if (!card.classList.contains('shelf-flash')) return;
+    card.classList.remove('shelf-flash');
+    card.classList.add('shelf-focus');
+  }, 3400);
+}
 
 App.goNoCabinet = function () {
   App._locFilter = { mode: 'none' };
   location.hash = '#/stock';
   route();
 };
+
+/* ---------- สแกน QR บนหน้าแผนผังคลัง ----------
+   เปิดกล้องแล้วอ่าน QR ป้ายตู้ (LOC:A1) — ไฮไลต์ชั้นบนแผนผัง + เด้งไปหน้าคงเหลือ
+   สแกนซ้ำได้เรื่อย ๆ จนกดปิดเอง */
+App.openCabinetScanner = function () {
+  const modal = openModal(`
+    <div class="modal-head"><h3>สแกน QR หน้าตู้</h3><button class="btn-icon" onclick="App.stopScanner();closeModal()" title="ปิด">${icon('x', 18)}</button></div>
+    <div class="modal-body">
+      <div id="qr-reader-cab" class="qr-reader"></div>
+      <div class="scanner-hint">${icon('info', 16)} เล็งกล้องไปที่ QR Code ติดตู้/ชั้น — ระบบจะเน้นชั้นบนแผนผังและแสดงวัสดุให้อัตโนมัติ</div>
+    </div>`, { noDismiss: true });
+  startCabinetScanner();
+  return modal;
+};
+
+/* กันอ่านซ้ำป้ายเดิม (กล้องชี้ค้างที่ป้ายเดิมจะอ่านซ้ำทุกเฟรม) */
+App._lastCabScan = { code: '', t: 0 };
+
+function startCabinetScanner() {
+  const el = document.getElementById('qr-reader-cab');
+  if (!el) return;
+  if (typeof Html5Qrcode !== 'function') {
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>ไม่พบไลบรารีสแกน QR (ออฟไลน์)</span></div>`;
+    return;
+  }
+  window.__scanner = new Html5Qrcode('qr-reader-cab');
+  el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
+  window.__scanner.start(
+    { videoConstraints: fastCameraConstraints() },
+    fastScanConfig(),
+    text => {
+      const code = String(text || '').trim().toUpperCase();
+      const now = Date.now();
+      if (App._lastCabScan.code === code && now - App._lastCabScan.t < 3000) return; /* อ่านซ้ำป้ายเดิม — ข้าม */
+      App._lastCabScan = { code, t: now };
+      const m = code.match(/^LOC[:\-]?([A-Z])(\d+)$/);
+      if (!m) { toast('QR นี้ไม่ใช่ป้ายตู้/ชั้น — ลองใหม่อีกครั้ง', 'error'); return; }
+      /* สแกนสำเร็จ: เน้นชั้นบนแผนผัง + กรองวัสดุ แล้วปิดกล้อง */
+      App.stopScanner();
+      closeModal();
+      const letter = m[1], shelf = +m[2];
+      const names = cabNameByLetter();
+      if (location.hash.replace(/^#\//, '').split('?')[0] !== 'cabinets') location.hash = '#/cabinets';
+      route();
+      App._locFilter = { mode: 'cabinet', letter, shelf, cabName: names[letter] || ('ตู้ ' + letter) };
+      App.goShelf(letter, shelf, { focus: true });
+      const cab = App.cabinets().find((c, i) => cabLetter(c, i) === letter);
+      const maxShelf = cab ? cab.shelves : 99;
+      toast(shelf <= maxShelf
+        ? `📍 ${names[letter] || ('ตู้ ' + letter)} ชั้นที่ ${shelf} — แสดงเฉพาะวัสดุชั้นนี้`
+        : `📍 ${names[letter] || ('ตู้ ' + letter)} ชั้นที่ ${shelf} (เกินจำนวนชั้นที่ตั้งไว้ ${maxShelf})`, shelf <= maxShelf ? 'info' : 'error');
+    },
+    () => { /* ข้าม error รายเฟรม */ }
+  ).then(() => tuneCameraAfterStart('qr-reader-cab'))
+  .catch(err => {
+    console.error('Scanner error:', err);
+    window.__scanner = null;
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง</span></div>`;
+  });
+}
 
 function initBarcode() {
   App.filterBarcodeItems();
