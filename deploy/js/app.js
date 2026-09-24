@@ -156,6 +156,8 @@ function getAudioContext() {
 function playNote(freq, duration, delay, volume) {
   try {
     const ctx = getAudioContext();
+    /* มือถือ: AudioContext สร้างนอก gesture อาจถูกระงับ — เรียก resume ก่อนเล่นทุกครั้ง */
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
@@ -191,6 +193,19 @@ function playOffline() {
   playNote(440, 0.1, 0, 0.08);     // A4
   playNote(349, 0.1, 0.08, 0.08);  // F4
   playNote(262, 0.15, 0.16, 0.08); // C4
+}
+
+/* เสียงบี๊บสแกนสำเร็จ — โน้ตสั้นสูงเดียวแบบเครื่องสแกน + สั่นเครื่องสั้น ๆ
+   ใช้ตอนสแกน QR/บาร์โค้ดได้รายการ จะได้รู้โดยไม่ต้องมองจอ */
+function playScanBeep() {
+  playNote(1046, 0.1, 0, 0.2);     // C6 สั้น ดังพอควร
+  if (navigator.vibrate) { try { navigator.vibrate(80); } catch (e) { /* ไม่รองรับ */ } }
+}
+
+/* เสียง + สั่นเครื่องเมื่อสแกนไม่สำเร็จ (ไม่พบรายการ / QR ไม่ใช่ป้าย) */
+function playScanError() {
+  playNote(220, 0.25, 0, 0.15);    // A3 ต่ำนาน — เสียงผิดพลาด
+  if (navigator.vibrate) { try { navigator.vibrate([80, 60, 80]); } catch (e) { /* ไม่รองรับ */ } }
 }
 
 /* ============================================================

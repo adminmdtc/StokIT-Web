@@ -749,6 +749,7 @@ function handleScanResult(raw) {
     const search = document.getElementById('st-search');
     if (search) search.value = '';
     App.filterStock();
+    playScanBeep();
     toast(`📍 ${cabName} ชั้นที่ ${locM[2]} — แสดงเฉพาะวัสดุชั้นนี้`, 'info');
     return;
   }
@@ -760,6 +761,7 @@ function handleScanResult(raw) {
     App.filterStock();
   }
   if (!it) {
+    playScanError();
     toast(`ไม่พบวัสดุ รหัส "${esc(code)}"`, 'error');
     /* ล้างค่าอัตโนมัติแล้ว focus กลับมาช่องค้นหา */
     if (search) { setTimeout(() => { search.value = ''; search.focus(); }, 300); }
@@ -773,6 +775,7 @@ function handleScanResult(raw) {
     row.scrollIntoView({ behavior: 'smooth', block: 'center' });
     setTimeout(() => row.classList.remove('row-flash'), 3400);
   }
+  playScanBeep();
   toast(`พบวัสดุ: ${it.name} (${it.code})`);
   /* ล้างค่าอัตโนมัติแล้ว focus กลับมาช่องค้นหาสำหรับสแกนต่อ */
   if (search) { setTimeout(() => { search.value = ''; search.focus(); }, 500); }
@@ -803,6 +806,7 @@ App.stopScanner = function () {
 };
 
 App.openScanner = function () {
+  unlockAudioForScan();
   const modal = openModal(`
     <div class="modal-head"><h3>สแกน QR วัสดุ</h3><button class="btn-icon" onclick="App.stopScanner();closeModal()" title="ปิด">${icon('x', 18)}</button></div>
     <div class="modal-body">
@@ -852,6 +856,7 @@ App.searchByBarcode = function (inputEl) {
 };
 
 App.scanToSelectItem = function (btn) {
+  unlockAudioForScan();
   const row = btn.closest('.tx-row');
   const select = row.querySelector('.tx-item');
   const scanner = openModal(`
@@ -904,6 +909,15 @@ function tuneCameraAfterStart(elId) {
   } catch (e) { /* ข้าม */ }
 }
 
+/* ปลดล็อกเสียงล่วงหน้าตอนผู้ใช้กดปุ่มสแกน (มือถือบางรุ่นบี๊บไม่ได้ถ้าไม่มี gesture ก่อน) */
+function unlockAudioForScan() {
+  try {
+    if (typeof getAudioContext !== 'function') return;
+    const ctx = getAudioContext();
+    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(() => {});
+  } catch (e) { /* ข้าม */ }
+}
+
 /* แปลง error กล้องเป็นข้อความที่เข้าใจง่าย (มือถือ/iPad) */
 function cameraErrorHint(err) {
   const s = String((err && (err.name || err.message)) || err || '');
@@ -934,7 +948,8 @@ function startScannerForSelect(selectEl) {
       const code = String(text || '').trim();
       if (!code) return;
       const it = Store.items().find(i => i.code.toUpperCase() === code.toUpperCase() || i.id === code);
-      if (!it) { toast(`ไม่พบรหัสวัสดุ "${esc(code)}"`, 'error'); return; }
+      if (!it) { playScanError(); toast(`ไม่พบรหัสวัสดุ "${esc(code)}"`, 'error'); return; }
+      playScanBeep();
       selectEl.value = it.id;
       App.onTxItemChange(selectEl);
       // ล้างและ focus กลับไปช่องบาร์โค้ด
@@ -2924,6 +2939,7 @@ App.goNoCabinet = function () {
    เปิดกล้องแล้วอ่าน QR ป้ายตู้ (LOC:A1) — ไฮไลต์ชั้นบนแผนผัง + เด้งไปหน้าคงเหลือ
    สแกนซ้ำได้เรื่อย ๆ จนกดปิดเอง */
 App.openCabinetScanner = function () {
+  unlockAudioForScan();
   const modal = openModal(`
     <div class="modal-head"><h3>สแกน QR หน้าตู้</h3><button class="btn-icon" onclick="App.stopScanner();closeModal()" title="ปิด">${icon('x', 18)}</button></div>
     <div class="modal-body">
@@ -2955,7 +2971,7 @@ function startCabinetScanner() {
       if (App._lastCabScan.code === code && now - App._lastCabScan.t < 3000) return; /* อ่านซ้ำป้ายเดิม — ข้าม */
       App._lastCabScan = { code, t: now };
       const m = code.match(/^LOC[:\-]?([A-Z])(\d+)$/);
-      if (!m) { toast('QR นี้ไม่ใช่ป้ายตู้/ชั้น — ลองใหม่อีกครั้ง', 'error'); return; }
+      if (!m) { playScanError(); toast('QR นี้ไม่ใช่ป้ายตู้/ชั้น — ลองใหม่อีกครั้ง', 'error'); return; }
       /* สแกนสำเร็จ: เน้นชั้นบนแผนผัง + กรองวัสดุ แล้วปิดกล้อง */
       App.stopScanner();
       closeModal();
@@ -2967,6 +2983,7 @@ function startCabinetScanner() {
       App.goShelf(letter, shelf, { focus: true });
       const cab = App.cabinets().find((c, i) => cabLetter(c, i) === letter);
       const maxShelf = cab ? cab.shelves : 99;
+      playScanBeep();
       toast(shelf <= maxShelf
         ? `📍 ${names[letter] || ('ตู้ ' + letter)} ชั้นที่ ${shelf} — แสดงเฉพาะวัสดุชั้นนี้`
         : `📍 ${names[letter] || ('ตู้ ' + letter)} ชั้นที่ ${shelf} (เกินจำนวนชั้นที่ตั้งไว้ ${maxShelf})`, shelf <= maxShelf ? 'info' : 'error');
