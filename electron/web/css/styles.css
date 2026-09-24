@@ -358,12 +358,13 @@ select.input option { padding: 10px 14px; font-size: 14px; }
 .brand-name { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: 0.02em; }
 .brand-sub { font-size: 12px; color: #94a3b8; margin-top: 2px; }
 
-.nav { flex: 1; margin-top: 20px; display: flex; flex-direction: column; gap: 6px; min-height: 0; overflow-y: auto; scrollbar-width: thin; }
+.nav { flex: 1; margin-top: 20px; display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: none; overscroll-behavior: contain; }
+.nav::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .nav-item {
-  display: flex; align-items: center; gap: 14px; padding: 13px 16px; 
+  display: flex; align-items: center; gap: 14px; padding: 10px 16px; 
   border-radius: var(--radius-sm); color: #cbd5e1; text-decoration: none; 
-  font-size: 14.5px; font-weight: 500; transition: all var(--transition-normal);
-  position: relative; overflow: hidden;
+  font-size: 14.5px; font-weight: 500; transition: background var(--transition-fast), color var(--transition-fast);
+  position: relative; overflow: hidden; flex-shrink: 0;
 }
 .nav-item::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
@@ -373,7 +374,6 @@ select.input option { padding: 10px 14px; font-size: 14px; }
 .nav-item:hover { 
   background: rgba(255, 255, 255, 0.08); 
   color: #fff; 
-  transform: translateX(4px);
 }
 .nav-item:hover::before { opacity: 0.5; transform: scaleY(1); }
 .nav-item.active {
@@ -1129,7 +1129,7 @@ text.tx-tab, button.tx-tab { line-height: 1; }
 @media (max-width: 860px) {
   .app-layout { grid-template-columns: 1fr; }
   .sidebar { position: static; height: auto; }
-  .nav { flex-direction: row; flex-wrap: wrap; }
+  .nav { flex-direction: row; flex-wrap: wrap; overflow: visible; }
   .page { padding: 20px 18px 36px; }
   .form-grid { grid-template-columns: 1fr; }
 }
