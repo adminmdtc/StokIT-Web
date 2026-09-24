@@ -196,10 +196,27 @@
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    /* updateViaCache:'none' = เช็ค sw.js กับเซิร์ฟเวอร์ทุกครั้ง ไม่ติด HTTP cache ของเบราว์เซอร์ */
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
       .then(reg => {
         console.log('Service Worker registered:', reg.scope);
-        
+
+        /* ตรวจอัปเดตทุกครั้งที่กลับมาที่แท็บ (แท็บที่ถูกพักไว้นาน ๆ เช่น iPad Safari/PWA) */
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') { try { reg.update().catch(() => {}); } catch (e) { /* ข้าม */ } }
+        });
+
+        /* SW ตัวใหม่ชาร์จหน้าอัตโนมัติ (ครั้งเดียว) — ไม่ต้องรอผู้ใช้รีเฟรชเอง
+           (แท็บที่ไม่เคยมี SW ควบคุม = ติดตั้งครั้งแรก ไม่ต้อง reload) */
+        const hadController = !!navigator.serviceWorker.controller;
+        let swRefreshing = false;
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          if (hadController && !swRefreshing) {
+            swRefreshing = true;
+            location.reload();
+          }
+        });
+
         // ตรวจสอบ update
         reg.addEventListener('updatefound', () => {
           const newWorker = reg.installing;
@@ -208,7 +225,7 @@ if ('serviceWorker' in navigator) {
               console.log('New Service Worker activated');
               // แจ้งเตือนผู้ใช้ (optional)
               if (typeof toast === 'function') {
-                toast('มีเวอร์ชันใหม่ — รีเฟรชหน้าเพื่ออัพเดท', 'info');
+                toast('มีเวอร์ชันใหม่ — กำลังรีเฟรชหน้าอัตโนมัติ', 'info');
               }
             }
           });
