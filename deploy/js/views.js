@@ -803,6 +803,9 @@ App.stopScanner = function () {
     window.__scanner = null;
     try { s.stop().then(() => {}).catch(() => {}); } catch (e) { /* ignore */ }
   }
+  document.querySelectorAll('.cam-zoom').forEach(el => el.remove());
+  const zv = document.querySelector('.qr-reader video');
+  if (zv) zv.style.transform = '';
 };
 
 App.openScanner = function () {
@@ -909,6 +912,67 @@ function tuneCameraAfterStart(elId) {
   } catch (e) { /* ข้าม */ }
 }
 
+/* ---------- Zoom กล้องสแกน ----------
+   ลากแถบเพื่อซูมเข้า/ออก (ใช้ zoom ของกล้องจริงถ้ารองรับ เช่น Android Chrome,
+   ถ้าไม่รองรับจะ fallback เป็น CSS transform ขยายภาพบนจอแทน) */
+let zoomCtl = null;
+function getScannerTrack() {
+  try {
+    const v = document.querySelector('.qr-reader video');
+    return (v && v.srcObject && v.srcObject.getVideoTracks) ? v.srcObject.getVideoTracks()[0] : null;
+  } catch (e) { return null; }
+}
+function buildZoomBar(elId) {
+  const host = document.getElementById(elId);
+  if (!host) return;
+  let bar = host.parentElement.querySelector(':scope > .cam-zoom');
+  if (bar) bar.remove();
+  bar = document.createElement('div');
+  bar.className = 'cam-zoom';
+  bar.innerHTML = `${icon('zoom-out', 16)}<input type="range" min="100" max="300" step="10" value="100" aria-label="ซูมกล้อง"><span class="zoom-val">1.0×</span>${icon('zoom-in', 16)}`;
+  host.insertAdjacentElement('afterend', bar);
+  const input = bar.querySelector('input');
+  const valEl = bar.querySelector('.zoom-val');
+  input.addEventListener('input', () => {
+    const v = +input.value / 100;
+    valEl.textContent = v.toFixed(1) + '×';
+    applyCameraZoom(v);
+  });
+}
+function applyCameraZoom(factor) {
+  try {
+    const track = getScannerTrack();
+    const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+    if (track && caps && caps.zoom) {
+      const min = caps.zoom.min || 100,
+        max = caps.zoom.max || 100;
+      if (max > min) {
+        const val = min + (max - min) * (factor - 1) / 2; /* 1.0×=min, 3.0×=max */
+        track.applyConstraints({ advanced: [{ zoom: val }] }).catch(() => {});
+        return;
+      }
+    }
+  } catch (e) { /* ตกไปใช้ CSS zoom */ }
+  const v = document.querySelector('.qr-reader video');
+  if (v) v.style.transform = factor > 1 ? `scale(${factor})` : '';
+  App._camZoom = factor;
+}
+function setupZoomAfterStart(elId) {
+  buildZoomBar(elId);
+  App._camZoom = 1;
+  const track = getScannerTrack();
+  try {
+    const caps = track && track.getCapabilities ? track.getCapabilities() : null;
+    if (track && caps && caps.zoom && caps.zoom.max > caps.zoom.min) {
+      zoomCtl = { min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 };
+      const input = document.querySelector('.cam-zoom input');
+      if (input) { input.disabled = false; input.title = 'ซูมด้วยกล้องจริง'; }
+    } else {
+      zoomCtl = null; /* ใช้ CSS zoom แทน */
+    }
+  } catch (e) { zoomCtl = null; }
+}
+
 /* ปลดล็อกเสียงล่วงหน้าตอนผู้ใช้กดปุ่มสแกน (มือถือบางรุ่นบี๊บไม่ได้ถ้าไม่มี gesture ก่อน) */
 function unlockAudioForScan() {
   try {
@@ -961,7 +1025,7 @@ function startScannerForSelect(selectEl) {
       toast(`พบวัสดุ: ${it.name} (${it.code})`);
     },
     () => {}
-  ).then(() => tuneCameraAfterStart('qr-reader-scan'))
+  ).then(() => { tuneCameraAfterStart('qr-reader-scan'); setupZoomAfterStart('qr-reader-scan'); })
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
@@ -986,7 +1050,7 @@ function startScanner() {
     fastScanConfig(),
     text => { App.stopScanner(); closeModal(); handleScanResult(text); },
     () => { /* ข้าม error รายเฟรม */ }
-  ).then(() => tuneCameraAfterStart('qr-reader'))
+  ).then(() => { tuneCameraAfterStart('qr-reader'); setupZoomAfterStart('qr-reader'); })
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
@@ -3100,7 +3164,7 @@ function startStockCountScanner() {
     fastScanConfig(),
     text => App.stockCountHandleScan(text),
     () => { /* ข้าม error รายเฟรม */ }
-  ).then(() => tuneCameraAfterStart('qr-reader-sc'))
+  ).then(() => { tuneCameraAfterStart('qr-reader-sc'); setupZoomAfterStart('qr-reader-sc'); })
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
@@ -3204,7 +3268,7 @@ function startCabinetScanner() {
         : `📍 ${names[letter] || ('ตู้ ' + letter)} ชั้นที่ ${shelf} (เกินจำนวนชั้นที่ตั้งไว้ ${maxShelf})`, shelf <= maxShelf ? 'info' : 'error');
     },
     () => { /* ข้าม error รายเฟรม */ }
-  ).then(() => tuneCameraAfterStart('qr-reader-cab'))
+  ).then(() => { tuneCameraAfterStart('qr-reader-cab'); setupZoomAfterStart('qr-reader-cab'); })
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
