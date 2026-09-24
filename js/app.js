@@ -24,7 +24,7 @@ function route() {
   const queryString = fullHash.includes('?') ? fullHash.split('?')[1] : '';
   const queryParams = Object.fromEntries(new URLSearchParams(queryString));
   if (!Views[path]) path = 'dashboard';
-  if (path === 'users' && user.role !== 'admin') path = 'dashboard';
+  if (user.role !== 'admin' && (path === 'users' || path === 'db' || path === 'settings')) path = 'dashboard';
 
   const view = Views[path];
   document.getElementById('page-title').textContent = view.title;
@@ -33,7 +33,11 @@ function route() {
 
   /* ด้านข้าง */
   document.querySelectorAll('.nav-item').forEach(a => a.classList.toggle('active', a.dataset.route === path));
-  document.getElementById('nav-users').classList.toggle('hidden', user.role !== 'admin');
+  /* เมนู admin-only: ผู้ใช้งาน, ฐานข้อมูล, ตั้งค่า — เจ้าหน้าที่ไม่เห็นและเข้าผ่าน URL ไม่ได้ */
+  ['nav-users', 'nav-db', 'nav-settings'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.toggle('hidden', user.role !== 'admin');
+  });
 
   /* ป้ายแจ้งเตือนวัสดุใกล้หมดที่เมนูคงเหลือ */
   const lowCount = Store.getStock().filter(s => s.status !== 'ok').length;
