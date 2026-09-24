@@ -874,6 +874,8 @@ function fastCameraConstraints() {
 }
 function fastScanConfig() {
   return {
+    /* html5-qrcode 2.3.8: ค่า videoConstraints ถูกวางตรงในช่อง video ของ getUserMedia — ต้องเป็น track constraints ล้วน */
+    videoConstraints: fastCameraConstraints(),
     fps: 24,
     qrbox: (vw, vh) => ({ width: Math.floor(vw * 0.85), height: Math.floor(vh * 0.55) }),
     disableFlip: false,
@@ -902,6 +904,15 @@ function tuneCameraAfterStart(elId) {
   } catch (e) { /* ข้าม */ }
 }
 
+/* แปลง error กล้องเป็นข้อความที่เข้าใจง่าย (มือถือ/iPad) */
+function cameraErrorHint(err) {
+  const s = String((err && (err.name || err.message)) || err || '');
+  if (/NotAllowed|Permission/i.test(s)) return 'สิทธิ์กล้องถูกปฏิเสธ — อนุญาตกล้องในเบราว์เซอร์แล้วลองใหม่';
+  if (/NotFound|OverconstrainedError|Requested device/i.test(s)) return 'ไม่พบกล้องที่ใช้งานได้บนเครื่องนี้';
+  if (/secure|https/i.test(s)) return 'ต้องเปิดหน้านี้ผ่าน HTTPS จึงจะใช้กล้องได้';
+  return 'ตรวจสอบสิทธิ์การใช้งานกล้อง หรือใช้เครื่องสแกนบาร์โค้ดแทน';
+}
+
 function startScannerForSelect(selectEl) {
   const el = document.getElementById('qr-reader-scan');
   if (!el) return;
@@ -915,7 +926,7 @@ function startScannerForSelect(selectEl) {
   el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
   
   window.__scanner.start(
-    { videoConstraints: fastCameraConstraints() },
+    { facingMode: 'environment' }, /* fallback ถ้า config.videoConstraints ใช้ไม่ได้ */
     fastScanConfig(),
     text => {
       App.stopScanner();
@@ -939,7 +950,7 @@ function startScannerForSelect(selectEl) {
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
-    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง</span></div>`;
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>${cameraErrorHint(err)}</span></div>`;
   });
 }
 
@@ -956,7 +967,7 @@ function startScanner() {
   el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
   
   window.__scanner.start(
-    { videoConstraints: fastCameraConstraints() },
+    { facingMode: 'environment' }, /* fallback ถ้า config.videoConstraints ใช้ไม่ได้ */
     fastScanConfig(),
     text => { App.stopScanner(); closeModal(); handleScanResult(text); },
     () => { /* ข้าม error รายเฟรม */ }
@@ -964,7 +975,7 @@ function startScanner() {
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
-    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง หรือใช้เครื่องสแกนบาร์โค้ดแทน</span></div>`;
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>${cameraErrorHint(err)}</span></div>`;
   });
 }
 
@@ -2936,7 +2947,7 @@ function startCabinetScanner() {
   window.__scanner = new Html5Qrcode('qr-reader-cab');
   el.innerHTML = '<div style="text-align:center;padding:10px;"><span style="color:#22c55e;">📷 กำลังเปิดกล้อง...</span></div>';
   window.__scanner.start(
-    { videoConstraints: fastCameraConstraints() },
+    { facingMode: 'environment' }, /* fallback ถ้า config.videoConstraints ใช้ไม่ได้ */
     fastScanConfig(),
     text => {
       const code = String(text || '').trim().toUpperCase();
@@ -2965,7 +2976,7 @@ function startCabinetScanner() {
   .catch(err => {
     console.error('Scanner error:', err);
     window.__scanner = null;
-    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>ตรวจสอบสิทธิ์การใช้งานกล้อง</span></div>`;
+    el.innerHTML = `<div class="empty">${icon('alert', 30)}<span>เปิดกล้องไม่สำเร็จ<br>${cameraErrorHint(err)}</span></div>`;
   });
 }
 
