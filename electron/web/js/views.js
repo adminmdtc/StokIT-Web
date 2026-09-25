@@ -235,7 +235,135 @@ App.resetTxForm = function (type) {
   if (gc) gc.classList.add('hidden');
   const uw = document.getElementById(pfx + '-unit-wrap');
   if (uw) uw.classList.add('hidden');
+  txDraftSave(type, null);
 };
+
+/* ============================================================
+   Draft อัตโนมัติ — เก็บฟอร์มรับเข้า/จำหน่ายลง localStorage ทุกครั้งที่พิมพ์
+   ปิดแท็บ/ไฟดับ/รีโหลดกลางคัน → กลับมาหน้าเดิมข้อมูลยังอยู่ครบ
+   ============================================================ */
+const TX_DRAFT_KEY = 'it-stock-tx-draft-v1';
+
+function txDraftLoad(type) {
+  try {
+    const all = JSON.parse(localStorage.getItem(TX_DRAFT_KEY) || '{}');
+    return (all && all[type]) || null;
+  } catch (e) { return null; }
+}
+
+function txDraftSave(type, data) {
+  try {
+    const all = JSON.parse(localStorage.getItem(TX_DRAFT_KEY) || '{}');
+    if (data) { data._ts = Date.now(); all[type] = data; }
+    else delete all[type];
+    localStorage.setItem(TX_DRAFT_KEY, JSON.stringify(all));
+  } catch (e) { /* เก็บไม่ได้ (เช่น private mode) ก็ข้าม */ }
+}
+
+function txDraftCapture(type) {
+  const pfx = type === 'receive' ? 'rv' : 'is';
+  const val = (id) => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const rows = [];
+  document.querySelectorAll('#' + type + '-rows .tx-row').forEach(r => {
+    const g = (s) => { const el = r.querySelector(s); return el ? el.value.trim() : ''; };
+    rows.push({ item: g('.tx-item'), serial: g('.tx-serial'), qty: g('.tx-qty') });
+  });
+  const d = {
+    date: val(pfx + '-date'),
+    party: val(pfx + '-party'),
+    mission: val(pfx + '-mission'),
+    group: val(pfx + '-group'),
+    groupCustom: val(pfx + '-group-custom'),
+    unit: val(pfx + '-unit'),
+    unitCustom: val(pfx + '-unit-custom'),
+    receiver: val(pfx + '-receiver'),
+    receiverCustom: val(pfx + '-receiver-custom'),
+    partyRx: val(pfx + '-party-rx'),
+    note: val(pfx + '-note'),
+    rows: rows.filter(r => r.item || r.serial || r.qty)
+  };
+  /* ไม่มีอะไรกรอกเลย = ไม่เก็บ (และล้างของเก่าทิ้ง) */
+  const hasHead = (d.date && d.date !== todayStr()) || d.party || d.mission || d.group || d.groupCustom || d.unit || d.unitCustom || d.receiver || d.receiverCustom || d.partyRx || d.note;
+  if (!hasHead && !d.rows.length) return null;
+  return d;
+}
+
+function saveTxDraftNow(type) {
+  if (!document.getElementById(type + '-rows')) return;
+  txDraftSave(type, txDraftCapture(type));
+}
+
+App.restoreTxDraft = function (type) {
+  const d = txDraftLoad(type);
+  if (!d) return;
+  const pfx = type === 'receive' ? 'rv' : 'is';
+  const setV = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
+  setV(pfx + '-date', d.date);
+  setV(pfx + '-party', d.party);
+  setV(pfx + '-note', d.note);
+  if (type === 'issue') {
+    if (d.mission) { setV(pfx + '-mission', d.mission); App.onMissionChange(pfx); }
+    if (d.group) {
+      setV(pfx + '-group', d.group);
+      App.onGroupChange(pfx);
+      const gc = document.getElementById(pfx + '-group-custom');
+      if (gc) gc.classList.toggle('hidden', d.group !== 'other');
+      setV(pfx + '-group-custom', d.groupCustom);
+    }
+    if (d.unit) {
+      const uw2 = document.getElementById(pfx + '-unit-wrap');
+      if (uw2 && !uw2.classList.contains('hidden')) {
+        setV(pfx + '-unit', d.unit);
+        const uc = document.getElementById(pfx + '-unit-custom');
+        if (uc) uc.classList.toggle('hidden', d.unit !== 'other');
+        setV(pfx + '-unit-custom', d.unitCustom);
+      }
+    }
+    setV(pfx + '-party-rx', d.partyRx);
+  }
+  if (d.receiver) {
+    setV(pfx + '-receiver', d.receiver);
+    const rc = document.getElementById(pfx + '-receiver-custom');
+    if (rc) rc.classList.toggle('hidden', d.receiver !== 'other');
+    setV(pfx + '-receiver-custom', d.receiverCustom);
+  }
+  if (d.rows && d.rows.length) {
+    const rowsEl = document.getElementById(type + '-rows');
+    if (rowsEl) {
+      rowsEl.innerHTML = '';
+      d.rows.forEach(r => {
+        App.addTxRow(type);
+        const row = rowsEl.lastElementChild;
+        if (!row) return;
+        const sel = row.querySelector('.tx-item');
+        if (sel && r.item) { sel.value = r.item; App.onTxItemChange(sel); }
+        const ser = row.querySelector('.tx-serial');
+        if (ser && r.serial) ser.value = r.serial;
+        const q = row.querySelector('.tx-qty');
+        if (q && r.qty) q.value = r.qty;
+      });
+    }
+  }
+  toast('กู้คืนข้อมูลที่กรอกค้างจากครั้งก่อนอัตโนมัติ');
+};
+
+/* จับการพิมพ์/เปลี่ยนค่าในฟอร์ม → บันทึก draft ทันที (sync — ปิดแท็บกลางคันก็เก็บทันที) */
+(function initTxDraftListeners() {
+  const handler = (ev) => {
+    const t = ev.target;
+    if (!t || !t.closest) return;
+    const f = t.closest('#rv-form, #is-form');
+    if (!f) return;
+    saveTxDraftNow(f.id === 'rv-form' ? 'receive' : 'issue');
+  };
+  document.addEventListener('input', handler, true);
+  document.addEventListener('change', handler, true);
+  /* ปิดแท็บ/สลับหน้าต่าง → เก็บก่อนออกทุกครั้ง */
+  window.addEventListener('pagehide', () => {
+    saveTxDraftNow('receive');
+    saveTxDraftNow('issue');
+  });
+})();
 
 App.onMissionChange = function (prefix) {
   const p = prefix || 'is';
@@ -290,6 +418,7 @@ App.submitReceive = function (ev) {
   Store.addTransaction(tx);
   toast(`บันทึกรับเข้าเรียบร้อย ${tx.no}`);
   Telegram.notifyReceive(tx);
+  txDraftSave('receive', null);
   App.go('#/receive');
 };
 
@@ -326,6 +455,7 @@ App.submitIssue = function (ev) {
   Store.addTransaction(tx);
   toast(`บันทึกจำหน่ายเรียบร้อย ${tx.no}`);
   Telegram.notifyIssue(tx);
+  txDraftSave('issue', null);
   App.go('#/issue');
 };
 
@@ -3807,12 +3937,12 @@ const Views = {
   receive: {
     title: 'รับเข้าวัสดุ', sub: 'บันทึกวัสดุที่รับเข้าคลัง',
     render: (params) => renderTxForm('receive') + renderTxHistory('receive', { stockEdits: params && params.tab === 'stockedits' }),
-    init: () => App.addTxRow('receive'),
+    init: () => { App.addTxRow('receive'); App.restoreTxDraft('receive'); },
   },
   issue: {
     title: 'จำหน่าย / เบิกจ่าย', sub: 'บันทึกการจำหน่ายหรือเบิกวัสดุออกจากคลัง',
     render: (params) => renderTxForm('issue') + renderTxHistory('issue', { stockEdits: params && params.tab === 'stockedits' }),
-    init: () => App.addTxRow('issue'),
+    init: () => { App.addTxRow('issue'); App.restoreTxDraft('issue'); },
   },
   stock: { title: 'คงเหลือ', sub: 'ยอดคงเหลือปัจจุบันของวัสดุทั้งหมด', render: renderStock, init: (params) => App.filterStock(params) },
   cabinets: { title: 'แผนผังคลัง', sub: 'ตำแหน่งตู้และชั้นจัดเก็บ — กดชั้นเพื่อดูวัสดุ', render: renderCabinets },

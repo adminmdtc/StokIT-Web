@@ -122,8 +122,14 @@ const LiveSync = {
       const isSearch = /search|ค้น|filter|q$/i.test(ph) && !(active.value || '').trim();
       if (!isSearch) return true;
     }
-    /* แถวรายการรับ/จำหน่ายที่กรอกค้างแต่ยังไม่กดเพิ่ม = ห้ามวาดใหม่ */
-    if (document.querySelector('.tx-row input, .tx-row select, .tx-row textarea')) return true;
+    /* แถวรายการรับ/จำหน่ายที่มีข้อมูลกรอกค้าง = ห้ามวาดใหม่ (แถวเปล่าไม่นับ) */
+    let txHasData = false;
+    document.querySelectorAll('.tx-row').forEach(r => {
+      r.querySelectorAll('input, select, textarea').forEach(el => {
+        if (String(el.value || '').trim()) txHasData = true;
+      });
+    });
+    if (txHasData) return true;
     /* modal เปิดอยู่และมีช่องกรอก = ห้ามวาดใหม่ */
     const modalOpen = document.querySelector('.modal-overlay');
     if (modalOpen && modalOpen.querySelector('input, textarea, select')) return true;
