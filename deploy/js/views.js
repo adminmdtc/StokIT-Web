@@ -1933,45 +1933,6 @@ function renderSettings() {
       </ul>
       <p style="margin-top:8px"><strong>⚠️ ควร backup สม่ำเสมอ</strong> โดยเฉพาะก่อนแก้ไขข้อมูลจำนวนมาก</p>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-head"><div><h3>☁️ Cloud Backup (สำรองข้อมูลบน Cloudflare)</h3>
-      <p class="muted small">สำรองข้อมูลขึ้น Cloudflare — เข้าถึงได้จากทุกที่ ทุกอุปกรณ์</p></div></div>
-    ${(() => {
-      const cloudKey = localStorage.getItem('it_stock_cloud_backup_key') || '';
-      const lastBackup = localStorage.getItem('it_stock_cloud_last_backup');
-      return `
-    <div style="margin-bottom:15px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-      ${cloudKey ? '<span class="badge badge-success">✅ ตั้งค่าแล้ว</span>' : '<span class="badge badge-gray">❌ ยังไม่ได้ตั้งค่า</span>'}
-      ${lastBackup ? `<span class="muted small">backup ล่าสุด: ${new Date(parseInt(lastBackup)).toLocaleString('th-TH')}</span>` : ''}
-    </div>
-    <div class="form-grid">
-      <div class="field full">
-        <label>🔑 Cloud Key (รหัสสำรองข้อมูล)</label>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-          <input class="input" id="cloud-backup-key" type="password" value="${esc(cloudKey)}" placeholder="ใส่รหัสลับสำหรับ backup (min 6 ตัวอักษร)">
-          <button type="button" class="btn btn-sm" onclick="const i=document.getElementById('cloud-backup-key');i.type=i.type==='password'?'text':'password'">👁️</button>
-        </div>
-        <p class="muted small" style="margin-top:5px">ใช้รหัสนี้สำหรับ backup และ restore ข้อมูลจากทุกเครื่อง</p>
-      </div>
-    </div>
-    <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
-      <button class="btn btn-success" onclick="App.cloudBackup()">☁️ สำรองข้อมูลขึ้น Cloud</button>
-      <button class="btn btn-primary" onclick="App.cloudRestore()">📥 กู้คืนข้อมูลจาก Cloud</button>
-      <button class="btn btn-outline" onclick="App.cloudCheckBackup()">🔍 ตรวจสอบ Backup</button>
-    </div>
-    <div class="muted small" style="margin-top:15px;padding:10px;background:var(--bg-secondary);border-radius:8px">
-      <strong>💡 วิธีใช้ Cloud Backup:</strong>
-      <ol style="margin:5px 0;padding-left:20px">
-        <li>ใส่ <strong>Cloud Key</strong> อะไรก็ได้ (เช่น <code>itstock-2026</code>) — ใส่เหมือนกันทุกเครื่อง</li>
-        <li>กด <strong>☁️ สำรองข้อมูลขึ้น Cloud</strong> → ข้อมูลจะถูกเก็บบน Cloudflare</li>
-        <li>บนเครื่องอื่น → ใส่ Cloud Key เดียวกัน → กด <strong>📥 กู้คืนข้อมูลจาก Cloud</strong></li>
-      </ol>
-      <p style="margin-top:8px"><strong>⚠️ เก็บ Cloud Key ไว้ที่ปลอดภัย</strong> — ถ้าหายจะกู้ข้อมูลไม่ได้</p>
-    </div>
-  </div>`;
-    })()}
   </div>`;
 }
 
@@ -1995,93 +1956,6 @@ App.testTelegram = async function () {
     toast('ส่งข้อความทดสอบสำเร็จ! ตรวจสอบใน Telegram', 'success');
   } else {
     toast('ส่งไม่สำเร็จ กรุณาตรวจสอบ Bot Token และ Chat ID', 'error');
-  }
-};
-
-/* ============================================================
-   Cloud Backup (Cloudflare KV)
-   ============================================================ */
-
-const CLOUD_BACKUP_API = 'https://it-stock-backup.itstocksync.workers.dev/api/backup';
-
-App.cloudBackup = async function () {
-  const key = document.getElementById('cloud-backup-key').value.trim();
-  if (!key || key.length < 6) { toast('Cloud Key ต้องมีอย่างน้อย 6 ตัวอักษร', 'error'); return; }
-  localStorage.setItem('it_stock_cloud_backup_key', key);
-
-  toast('กำลังสำรองข้อมูลขึ้น Cloud...', 'info');
-  try {
-    const backupData = {
-      items: Store.db.items || [],
-      transactions: Store.db.transactions || [],
-      users: Store.db.users || [],
-      reorderItems: Store.db.reorderItems || [],
-      _exportDate: new Date().toISOString(),
-    };
-    const resp = await fetch(`${CLOUD_BACKUP_API}?key=${encodeURIComponent(key)}`,
-      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(backupData) }
-    );
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const result = await resp.json();
-    localStorage.setItem('it_stock_cloud_last_backup', Date.now().toString());
-    toast(`☁️ สำรองข้อมูลสำเร็จ! (${result.itemCount} รายการ)`, 'success');
-    route();
-  } catch (e) {
-    toast('สำรองไม่สำเร็จ: ' + e.message, 'error');
-  }
-};
-
-App.cloudRestore = async function () {
-  const key = document.getElementById('cloud-backup-key').value.trim();
-  if (!key || key.length < 6) { toast('กรุณาใส่ Cloud Key', 'error'); return; }
-  localStorage.setItem('it_stock_cloud_backup_key', key);
-
-  if (!confirm('กู้คืนข้อมูลจาก Cloud?\nข้อมูลปัจจุบันจะถูกแทนที่ทั้งหมด')) return;
-
-  toast('กำลังดึงข้อมูลจาก Cloud...', 'info');
-  try {
-    const resp = await fetch(`${CLOUD_BACKUP_API}?key=${encodeURIComponent(key)}`);
-    if (resp.status === 404) { toast('ไม่พบ backup สำหรับ Cloud Key นี้', 'error'); return; }
-    if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const data = await resp.json();
-
-    // ตรวจสอบว่ามีข้อมูลจริง
-    if (!data.items || data.items.length === 0) {
-      toast('ไม่พบข้อมูลใน backup', 'error');
-      return;
-    }
-
-    // แทนที่ข้อมูล
-    Store.db = {
-      items: data.items || [],
-      transactions: data.transactions || [],
-      users: data.users || Store.db.users || [],
-      reorderItems: data.reorderItems || [],
-    };
-    Store.save();
-    toast(`📥 กู้คืนสำเร็จ! (${data.items.length} รายการ)`, 'success');
-    route();
-  } catch (e) {
-    toast('กู้คืนไม่สำเร็จ: ' + e.message, 'error');
-  }
-};
-
-App.cloudCheckBackup = async function () {
-  const key = document.getElementById('cloud-backup-key').value.trim();
-  if (!key || key.length < 6) { toast('กรุณาใส่ Cloud Key', 'error'); return; }
-
-  toast('กำลังตรวจสอบ...', 'info');
-  try {
-    const resp = await fetch(`${CLOUD_BACKUP_API}/list?key=${encodeURIComponent(key)}`);
-    const data = await resp.json();
-    if (data.exists) {
-      const d = new Date(data.backupAt);
-      toast(`✅ พบ backup!\nรายการ: ${data.itemCount} รายการ\nธุรกรรม: ${data.transactionCount} รายการ\nเวลา: ${d.toLocaleString('th-TH')}`, 'success');
-    } else {
-      toast('❌ ไม่พบ backup สำหรับ Cloud Key นี้', 'error');
-    }
-  } catch (e) {
-    toast('ตรวจสอบไม่สำเร็จ: ' + e.message, 'error');
   }
 };
 
