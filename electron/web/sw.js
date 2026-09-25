@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'it-stock-v26';
+const CACHE_NAME = 'it-stock-v27';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -42,7 +42,13 @@ self.addEventListener('install', (event) => {
         console.log('[SW] Caching static assets');
         // Cache static assets (skip errors)
         return Promise.allSettled([
-          cache.addAll(STATIC_ASSETS),
+          /* ใช้ cache:'reload' — บังคับดึงจากเซิร์ฟเวอร์ทุกครั้ง ไม่ผ่าน HTTP cache เดิม
+             (ไม่งั้นเจอไฟล์เก่าค้างแล้วเอาไปแคชไว้ใน SW ใหม่อีกทอด) */
+          ...STATIC_ASSETS.map(url =>
+            fetch(url, { cache: 'reload' })
+              .then(response => response.ok ? cache.put(url, response) : null)
+              .catch(() => console.log('[SW] Failed to cache:', url))
+          ),
           ...CDN_ASSETS.map(url =>
             fetch(url)
               .then(response => {

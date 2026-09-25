@@ -14,6 +14,7 @@ const LiveSync = {
   _badge: null,
   _seenRev: 0, /* rev ล่าสุดที่เครื่องนี้รับแล้ว — rev ใหม่กว่านี้ = มีการกู้คืน backup ต้อง replace เต็ม */
   _pollTimer: null,
+  _blurHandler: null,
 
   isLive() {
     return typeof SupabaseBackend !== 'undefined' && SupabaseBackend.enabled;
@@ -24,6 +25,16 @@ const LiveSync = {
     SupabaseBackend.startRealtime((evt) => this._onRemoteChange(evt));
     /* polling สำรองทุก 45 วิ — กัน websocket/เน็ตมีปัญหา เครื่องอื่นจะได้ข้อมูลใหม่ไม่เกินหนึ่งนาที */
     if (!this._pollTimer) this._pollTimer = setInterval(() => this._onRemoteChange({ source: 'poll' }), 45000);
+    /* เลิกพิมพ์เมื่อไหร่ ถ้าไม่มีข้อมูลค้างจริงแล้ว ค่อยวาดหน้าใหม่ทันที */
+    if (!this._blurHandler) {
+      this._blurHandler = () => setTimeout(() => {
+        if (this._pendingWhileEditing && !this._isUserTyping()) {
+          this._pendingWhileEditing = false;
+          this._applyRemote();
+        }
+      }, 300);
+      document.addEventListener('focusout', this._blurHandler);
+    }
     this._setStatus('connected', 'ซิงค์สด (Supabase)');
     this._ensureBadge();
   },
@@ -32,6 +43,7 @@ const LiveSync = {
     if (typeof SupabaseBackend !== 'undefined') SupabaseBackend.stopRealtime();
     if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null; }
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
+    if (this._blurHandler) { document.removeEventListener('focusout', this._blurHandler); this._blurHandler = null; }
     this._setStatus('offline', 'ไม่ได้ซิงค์');
     this._removeBadge();
   },
@@ -86,12 +98,10 @@ const LiveSync = {
         for (const tx of localNewTxs) { try { await SupabaseBackend.addTransaction(tx); } catch (e) { /* retry รอบหน้า */ } }
       }
 
-      /* วาดหน้าใหม่เฉพาะเมื่อไม่มี modal และไม่มีฟอร์มที่กำลังกรอก */
-      const modalOpen = document.querySelector('.modal-overlay');
-      const editing = modalOpen ? modalOpen.querySelector('input, textarea, select') : null;
-      if (modalOpen && editing) {
+      /* วาดหน้าใหม่เฉพาะเมื่อผู้ใช้ไม่ได้กรอกข้อมูลค้างไว้ (กันฟอร์มหาย) */
+      if (this._isUserTyping()) {
         this._pendingWhileEditing = true;
-        this.notify('มีข้อมูลใหม่จากผู้ใช้อื่น — จะอัปเดตหลังปิดหน้าต่างนี้');
+        this.notify('มีข้อมูลใหม่จากผู้ใช้อื่น — จะอัปเดตหลังบันทึก/ปิดฟอร์ม');
         return;
       }
       if (typeof route === 'function') route();
@@ -101,6 +111,23 @@ const LiveSync = {
       this._setStatus('error', 'ซิงค์ผิดพลาด — จะลองใหม่');
       console.error('LiveSync apply error:', e);
     }
+  },
+
+  /* ตรวจว่าผู้ใช้กำลังกรอกข้อมูลอยู่หรือไม่ — จริง ๆ ทั้งหน้า ไม่ใช่แค่ modal */
+  _isUserTyping() {
+    const active = document.activeElement;
+    if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+      /* ช่องค้นหา/ตัวกรองที่ว่างเปล่าไม่ถือว่ากำลังกรอกข้อมูลสำคัญ */
+      const ph = (active.getAttribute('placeholder') || '') + (active.id || '') + (active.name || '');
+      const isSearch = /search|ค้น|filter|q$/i.test(ph) && !(active.value || '').trim();
+      if (!isSearch) return true;
+    }
+    /* แถวรายการรับ/จำหน่ายที่กรอกค้างแต่ยังไม่กดเพิ่ม = ห้ามวาดใหม่ */
+    if (document.querySelector('.tx-row input, .tx-row select, .tx-row textarea')) return true;
+    /* modal เปิดอยู่และมีช่องกรอก = ห้ามวาดใหม่ */
+    const modalOpen = document.querySelector('.modal-overlay');
+    if (modalOpen && modalOpen.querySelector('input, textarea, select')) return true;
+    return false;
   },
 
   /* เรียกเมื่อปิด modal — ถ้ามีข้อมูลค้างรอ ให้วาดทันที */
