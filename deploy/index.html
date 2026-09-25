@@ -207,13 +207,28 @@ if ('serviceWorker' in navigator) {
         });
 
         /* SW ตัวใหม่ชาร์จหน้าอัตโนมัติ (ครั้งเดียว) — ไม่ต้องรอผู้ใช้รีเฟรชเอง
+           แต่ถ้ากำลังเปิด modal/กรอกฟอร์มค้าง → แสดงแถบให้กดอัปเดตเอง กันข้อมูลที่กรอกหาย
            (แท็บที่ไม่เคยมี SW ควบคุม = ติดตั้งครั้งแรก ไม่ต้อง reload) */
         const hadController = !!navigator.serviceWorker.controller;
         let swRefreshing = false;
+        window.__showUpdateBar = function () {
+          if (document.getElementById('sw-update-bar')) return;
+          const bar = document.createElement('div');
+          bar.id = 'sw-update-bar';
+          bar.innerHTML = '<span>มีเวอร์ชันใหม่ของระบบ — ถ้ายังกรอกรายการไม่เสร็จ บันทึกก่อนแล้วกดปุ่มด้านล่าง</span><button type="button" onclick="location.reload()">อัปเดตตอนนี้</button>';
+          document.body.appendChild(bar);
+        };
+        window.__swApplyUpdate = function () {
+          const busy = document.querySelector('#modal-root .modal') ||
+            Array.from(document.querySelectorAll('.tx-row input, .tx-row select, .tx-row textarea')).some(el => (el.value || '').trim() !== '');
+          if (busy) { window.__showUpdateBar(); return 'bar'; }
+          location.reload();
+          return 'reload';
+        };
         navigator.serviceWorker.addEventListener('controllerchange', () => {
           if (hadController && !swRefreshing) {
             swRefreshing = true;
-            location.reload();
+            window.__swApplyUpdate();
           }
         });
 
@@ -225,7 +240,7 @@ if ('serviceWorker' in navigator) {
               console.log('New Service Worker activated');
               // แจ้งเตือนผู้ใช้ (optional)
               if (typeof toast === 'function') {
-                toast('มีเวอร์ชันใหม่ — กำลังรีเฟรชหน้าอัตโนมัติ', 'info');
+                toast('มีเวอร์ชันใหม่ของระบบ — ถ้ากำลังกรอกรายการ ระบบจะไม่รีเฟรชจนกว่าจะพร้อม', 'info');
               }
             }
           });

@@ -334,6 +334,25 @@ select.input option { padding: 10px 14px; font-size: 14px; }
   font-family: var(--font-mono); font-size: 12.5px; color: var(--primary-dark);
 }
 
+/* ============ SW Update Bar ============ */
+#sw-update-bar {
+  position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 3000;
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  padding: 12px 18px; border-radius: 14px;
+  background: #1e1b4b; color: #e0e7ff;
+  box-shadow: 0 12px 40px rgba(30, 27, 75, 0.45);
+  border: 1px solid rgba(129, 140, 248, 0.35);
+  font-size: 13.5px; animation: slideUpIn 0.3s ease;
+}
+#sw-update-bar button {
+  flex-shrink: 0; padding: 8px 18px; border: 0; border-radius: 999px; cursor: pointer;
+  background: var(--gradient-primary); color: #fff; font-family: inherit;
+  font-size: 13px; font-weight: 700; box-shadow: 0 4px 14px rgba(99, 102, 241, 0.5);
+}
+#sw-update-bar button:hover { filter: brightness(1.1); }
+@keyframes slideUpIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 860px) { #sw-update-bar { flex-direction: column; text-align: center; } }
+
 /* ============ Main Layout ============ */
 .app-layout { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
 
