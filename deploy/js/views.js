@@ -298,7 +298,8 @@ App.restoreTxDraft = function (type) {
   if (!d) return;
   const pfx = type === 'receive' ? 'rv' : 'is';
   const setV = (id, v) => { const el = document.getElementById(id); if (el && v) el.value = v; };
-  setV(pfx + '-date', d.date);
+  /* ไม่ดึงวันที่จาก draft กลับมา — ค่าเริ่มต้นฟอร์มคือวันนี้เสมอ
+     (เดิมดันวันที่เก่าจาก draft กลับเข้าช่อง ทำให้รายการถูกบันทึกด้วยวันที่ผิด) */
   setV(pfx + '-party', d.party);
   setV(pfx + '-note', d.note);
   if (type === 'issue') {

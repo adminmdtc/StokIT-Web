@@ -15,8 +15,9 @@ function hashStr(s) {
   return 'h' + h.toString(16);
 }
 function uid(p) { return (p || 'id') + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
-function daysAgo(n) { const d = new Date(Date.now() - n * 864e5); return d.toISOString().slice(0, 10); }
-function todayStr() { return new Date().toISOString().slice(0, 10); }
+function daysAgo(n) { const d = new Date(Date.now() - n * 864e5); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }
+/* วันที่วันนี้ตามเวลาท้องถิ่น (เดิมใช้ UTC ทำให้หลังเที่ยงคืน–06:59 น. ไทยได้วันที่ย้อนหลัง 1 วัน) */
+function todayStr() { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); }
 
 /* ---------- ข้อมูลตัวอย่าง (นำเข้าจาก Excel รายงานคงเหลือ) ---------- */
 function buildSeed() {
@@ -283,11 +284,25 @@ const Store = {
   getItem(id) { return this.db.items.find(i => i.id === id); },
 
   nextItemCode() { const n = ++this.db.seq.item; return 'IT-' + String(n).padStart(4, '0'); },
+  /* ออกเลขเอกสารจากเลขสูงสุดที่มีจริงใน transactions (+1) เสมอ
+     เดิมใช้ตัวนับ seq แยกตามเครื่อง (localStorage) ทำให้หลายเครื่องออกเลขซ้ำกัน */
   nextTxNo(type) {
     const key = type === 'receive' ? 'receive' : 'issue';
-    const n = ++this.db.seq[key];
     const pre = type === 'receive' ? 'RCV' : 'ISS';
-    return `${pre}-${new Date().getFullYear()}-${String(n).padStart(4, '0')}`;
+    const year = todayStr().slice(0, 4);
+    const pfx = pre + '-' + year + '-';
+    let max = 0;
+    (this.db.transactions || []).forEach(t => {
+      if (t && typeof t.no === 'string' && t.no.indexOf(pfx) === 0) {
+        const n = parseInt(t.no.slice(pfx.length), 10);
+        if (!isNaN(n) && n > max) max = n;
+      }
+    });
+    const seqN = Number(this.db.seq && this.db.seq[key]) || 0;
+    if (seqN > max) max = seqN;
+    const n = max + 1;
+    this.db.seq[key] = n;
+    return `${pre}-${year}-${String(n).padStart(4, '0')}`;
   },
 
   /* ตั้ง qty โดยตรง — ลบ receive เดิมของ item แล้วสร้างใหม่ (สำหรับ Admin แก้ไขจำนวน) */
