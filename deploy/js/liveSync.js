@@ -90,6 +90,9 @@ const LiveSync = {
       try { localStorage.setItem('it_stock_db_v5', JSON.stringify(Store.db)); } catch (e) { /* ignore */ }
       this._lastApplied = Date.now();
 
+      /* แก้เลขเอกสารซ้ำที่ติดมากับข้อมูลเก่า — ไล่เลขใหม่แล้ว upsert ขึ้นคลาวด์ */
+      try { if (Store.dedupeTxNumbers()) this.notify('ตรวจพบเลขเอกสารซ้ำ — แก้เลขให้เรียบร้อยแล้ว'); } catch (e) { console.error('dedupe error:', e); }
+
       /* ส่งรายการที่เพิ่งเพิ่มในเครื่องขึ้นคลาวด์ให้ทัน (ถ้ายังไม่ขึ้น) */
       if (localNewItems.length) {
         for (const it of localNewItems) { try { await SupabaseBackend.addItem(it); } catch (e) { /* retry รอบหน้า */ } }

@@ -84,7 +84,7 @@ body {
 .muted { color: var(--muted); }
 .small { font-size: 13px; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
-.td-mono { font-family: var(--font-mono); font-size: 13px; }
+.td-mono { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; }
 strong { font-weight: 600; }
 
 /* ============ Buttons ============ */
@@ -1108,6 +1108,7 @@ text.tx-tab, button.tx-tab { line-height: 1; }
 }
 .print-table td { border: 1px solid #e2e8f0; padding: 8px 12px; }
 .print-table .pr-num { text-align: right; font-variant-numeric: tabular-nums; }
+.print-table .pr-nowrap, table.list .pr-nowrap { white-space: nowrap; }
 .print-table tfoot td { 
   font-weight: 700; background: var(--border-light); 
   border-top: 2px solid #94a3b8; 

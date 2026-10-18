@@ -39,9 +39,9 @@ function exportExcel(filename, cols, rows, sheetName = 'รายงาน') {
 }
 
 function buildTableHtml(cols, rows) {
-  const head = cols.map(c => `<th class="${c.align === 'right' ? 'pr-num' : ''}">${esc(c.label)}</th>`).join('');
+  const head = cols.map(c => `<th class="${([c.align === 'right' ? 'pr-num' : '', c.nowrap ? 'pr-nowrap' : '']).join(' ').trim()}">${esc(c.label)}</th>`).join('');
   const body = rows.map(r => `<tr>${r.map((c, i) =>
-    `<td class="${(cols[i] || {}).align === 'right' ? 'pr-num' : ''}">${esc(c)}</td>`).join('')}</tr>`).join('');
+    `<td class="${([(cols[i] || {}).align === 'right' ? 'pr-num' : '', (cols[i] || {}).nowrap ? 'pr-nowrap' : '']).join(' ').trim()}">${esc(c)}</td>`).join('')}</tr>`).join('');
   return `<thead><tr>${head}</tr></thead><tbody>${body}</tbody>`;
 }
 

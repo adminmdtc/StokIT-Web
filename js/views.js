@@ -1600,8 +1600,8 @@ function reportData(type) {
   const label = isRcv ? 'รับเข้า' : 'จำหน่าย';
   const labelTxt = REP.tab === 'stockedits' ? `${label}วัสดุ (แก้ไขสต๊อก)` : `${label}วัสดุ`;
   const cols = [
-    { label: 'ลำดับ', align: 'right' }, { label: 'เลขที่เอกสาร' }, { label: 'วันที่' },
-    { label: 'รหัส' }, { label: 'รายการวัสดุ' }, { label: 'จำนวน', align: 'right' }, { label: 'หน่วย' }, { label: 'หมายเหตุ' },
+    { label: 'ลำดับ', align: 'right' }, { label: 'เลขที่เอกสาร', nowrap: true }, { label: 'วันที่', nowrap: true },
+    { label: 'รหัส', nowrap: true }, { label: 'รายการวัสดุ' }, { label: 'จำนวน', align: 'right' }, { label: 'หน่วย' }, { label: 'หมายเหตุ' },
   ];
   const rows = [];
   let idx = 0, totQ = 0;
