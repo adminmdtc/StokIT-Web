@@ -416,9 +416,12 @@ App.submitReceive = function (ev) {
   const lines = collectTxLines('receive');
   if (!lines) return;
   const tx = { id: uid('tx'), type: 'receive', no: Store.nextTxNo('receive'), date, party, receiver, note, by: me.id, byName: me.name, items: lines };
+  /* ป้าย: เครื่องแจ้ง Telegram แล้ว (ติดเฉพาะเมื่อเครื่องนี้แจ้งได้จริง — เครื่องอื่นที่ sync ได้จะไม่แจ้งซ้ำ) */
+  const tgNotify = Telegram.isConfigured();
+  if (tgNotify) tx.tgSent = 1;
   Store.addTransaction(tx);
   toast(`บันทึกรับเข้าเรียบร้อย ${tx.no}`);
-  Telegram.notifyReceive(tx);
+  if (tgNotify) Telegram.notifyReceive(tx);
   txDraftSave('receive', null);
   App.go('#/receive');
 };
@@ -453,9 +456,12 @@ App.submitIssue = function (ev) {
   const lines = collectTxLines('issue');
   if (!lines) return;
   const tx = { id: uid('tx'), type: 'issue', no: Store.nextTxNo('issue'), date, party, receiver, partyRx, note, by: me.id, byName: me.name, items: lines, mission: missionId, group: groupId === 'other' ? '' : groupId, workUnit: unitVal };
+  /* ป้าย: เครื่องแจ้ง Telegram แล้ว (ติดเฉพาะเมื่อเครื่องนี้แจ้งได้จริง — เครื่องอื่นที่ sync ได้จะไม่แจ้งซ้ำ) */
+  const tgNotify = Telegram.isConfigured();
+  if (tgNotify) tx.tgSent = 1;
   Store.addTransaction(tx);
   toast(`บันทึกจำหน่ายเรียบร้อย ${tx.no}`);
-  Telegram.notifyIssue(tx);
+  if (tgNotify) Telegram.notifyIssue(tx);
   txDraftSave('issue', null);
   App.go('#/issue');
 };

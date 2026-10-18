@@ -67,6 +67,9 @@ const LiveSync = {
       const hasAny = (data.items && data.items.length) || (data.transactions && data.transactions.length);
       if (!hasAny) return;
 
+      /* จำ id เอกสารที่เครื่องนี้มีอยู่ก่อนรับ ไว้ใช้รู้ว่าตัวไหน "มาใหม่จากเครื่องอื่น" */
+      const prevTxIds = new Set((Store.db.transactions || []).map(t => t.id));
+
       /* กัน race: ถ้าระหว่าง fetch นี้เครื่องเราเพิ่งเพิ่ม/แก้ข้อมูล (push ขึ้นคลาวด์แล้ว)
          อย่าเขียนทับรายการที่ยังไม่มีใน snapshot ที่ได้มา — merge แทน
          ยกเว้น: rev เปลี่ยน (มีใครกู้คืน backup) = replace เต็มเสมอ */
@@ -92,6 +95,26 @@ const LiveSync = {
 
       /* แก้เลขเอกสารซ้ำที่ติดมากับข้อมูลเก่า — ไล่เลขใหม่แล้ว upsert ขึ้นคลาวด์ */
       try { if (Store.dedupeTxNumbers()) this.notify('ตรวจพบเลขเอกสารซ้ำ — แก้เลขให้เรียบร้อยแล้ว'); } catch (e) { console.error('dedupe error:', e); }
+
+      /* แจ้งเตือน Telegram เอกสารที่ "เครื่องอื่น" บันทึกแล้วไหลเข้ามาทางซิงค์สด
+         (เอกสารที่เครื่องเราบันทึกเอง มี notify ตอน submit แล้ว ไม่แจ้งซ้ำ)
+         - ไม่รวมรายการแก้ไขสต็อก
+         - ซิงค์ครั้งแรก/กู้คืน backup (firstSeen/revChanged) ไม่ท่วมแจ้งของเก่า */
+      if (!revChanged && !firstSeen) {
+        const remoteNewTxs = (Store.db.transactions || []).filter(t =>
+          t && !prevTxIds.has(t.id) &&
+          !localNewTxs.some(l => l.id === t.id) &&
+          !t.tgSent &&
+          t.party !== 'แก้ไขสต็อก' && t.party !== 'แก้ไขจำนวนตรง');
+        for (const t of remoteNewTxs) {
+          try {
+            t.tgSent = 1;
+            Store.save();
+            if (t.type === 'receive') await Telegram.notifyReceive(t);
+            else await Telegram.notifyIssue(t);
+          } catch (e) { console.error('LiveSync telegram notify error:', e); }
+        }
+      }
 
       /* ส่งรายการที่เพิ่งเพิ่มในเครื่องขึ้นคลาวด์ให้ทัน (ถ้ายังไม่ขึ้น) */
       if (localNewItems.length) {
