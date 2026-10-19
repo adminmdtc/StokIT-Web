@@ -152,12 +152,18 @@ function showAbout() {
 // === App Lifecycle ===
 
 app.whenReady().then(() => {
+  if (process.env.ITSTOCK_UPDATE_TEST === '1') {
+    require('./updater-run-test'); /* headless: check → releaseNotes → download แล้ว exit */
+    return;
+  }
   createWindow();
 });
 
 app.on('window-all-closed', () => {
+  app.on('window-all-closed', () => {
   try { if (db) db.close(); } catch (e) { /* ignore */ }
   if (process.platform !== 'darwin') app.quit();
+});
 });
 
 app.on('before-quit', () => {

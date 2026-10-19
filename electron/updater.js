@@ -35,6 +35,12 @@ try {
 autoUpdater.autoDownload = false;
 autoUpdater.autoInstallOnAppQuit = true;
 
+// ทดสอบ updater จากซอร์ส (npm start): เปิดใช้ feed จริงแม้ไม่มี app-update.yml ใน resources
+if (process.env.ITSTOCK_UPDATE_CHANNEL) {
+  autoUpdater.forceDevUpdateConfig = true; /* อ่าน dev-app-update.yml จากโฟลเดอร์ซอร์ส */
+  autoUpdater.autoDownload = false;
+}
+
 // ตั้งค่า feed URL โดยตรง (fallback ถ้าไม่มี yml)
 autoUpdater.setFeedURL({
   provider: 'github',
@@ -157,12 +163,30 @@ autoUpdater.on('update-downloaded', (info) => {
     message: 'ดาวน์โหลดเสร็จแล้ว! ต้องการรีสตาร์ทเพื่ออัพเดท',
   });
 
+  /* release notes (HTML) แปลงเป็น plain text สั้น ๆ ใส่กล่อง dialog แจ้งพร้อมติดตั้ง */
+  const releaseNotesPlain = (function () {
+    const raw = info.releaseNotes;
+    if (!raw) return '';
+    const html = typeof raw === 'string' ? raw : (raw.content || JSON.stringify(raw));
+    return String(html)
+      .replace(/<h[1-3][^>]*>/g, '\n')
+      .replace(/<\/h[1-3]>/g, ':\n')
+      .replace(/<li[^>]*>/g, ' • ')
+      .replace(/<\/li>/g, '\n')
+      .replace(/<br\s*\/?>/g, '\n')
+      .replace(/<[^>]+>/g, '')
+      .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+      .slice(0, 600);
+  })();
+
   var parentWin = updateWindow || BrowserWindow.getFocusedWindow();
   dialog.showMessageBox(parentWin, {
     type: 'info',
     title: 'มีเวอร์ชันใหม่พร้อมติดตั้ง',
     message: 'IT Stock เวอร์ชัน ' + info.version + ' พร้อมแล้ว',
-    detail: 'ต้องการรีสตาร์ทโปรแกรมเพื่ออัพเดทตอนนี้เลยไหม?',
+    detail: (releaseNotesPlain ? releaseNotesPlain + '\n\n' : '') + 'ต้องการรีสตาร์ทโปรแกรมเพื่ออัพเดทตอนนี้เลยไหม?',
     buttons: ['รีสตาร์ทตอนนี้', 'ภายหลัง'],
     defaultId: 0,
     cancelId: 1,
@@ -194,9 +218,20 @@ function sendToMainWindow(channel, data) {
 
 // === IPC Handlers ===
 
-ipcMain.on('start-download', () => {
+ipcMain.on('start-download', async () => {
   console.log('User approved download');
-  autoUpdater.downloadUpdate();
+  try {
+    /* electron-updater ฝั่ง promise ของ checkForUpdates จะ set updateInfoAndProvider แล้ว
+       หมายเหตุ: ถ้า check ผ่านแต่ updateInfoAndProvider ยังเป็น null (race ระหว่าง checkForUpdates promise chain)
+       จะ re-check หรืออ้างผล getUpdateInfoAndProvider ใหม่เพื่อให้ downloadUpdate ไม่ดอง */
+    if (!autoUpdater.updateInfoAndProvider) {
+      const gp = await autoUpdater.getUpdateInfoAndProvider();
+      autoUpdater.updateInfoAndProvider = gp;
+    }
+    await autoUpdater.downloadUpdate();
+  } catch (e) {
+    console.error('Download update failed:', e.message || e);
+  }
 });
 
 ipcMain.on('restart-app', () => {
@@ -233,7 +268,15 @@ _ipc.handle('updater:check', async () => {
 });
 
 _ipc.handle('updater:download', async () => {
-  try { await autoUpdater.downloadUpdate(); return { ok: true }; }
+  try {
+    /* กัน "Please check update first": ถ้า check promise chain จบแล้ว updateInfoAndProvider ถูกล้าง ให้ re-set จากผลล่าสุด */
+    if (!autoUpdater.updateInfoAndProvider) {
+      const gp = await autoUpdater.getUpdateInfoAndProvider();
+      autoUpdater.updateInfoAndProvider = gp;
+    }
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  }
   catch (err) { return { ok: false, message: (err && err.message) || String(err) }; }
 });
 
