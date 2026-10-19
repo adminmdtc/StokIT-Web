@@ -1,0 +1,7 @@
+# IT Stock — dev-app-update.yml
+# ใช้ตอนทดสอบ updater จากซอร์ส (ITSTOCK_UPDATE_CHANNEL=1): forceDevUpdateConfig ให้อ่านไฟล์นี้
+# ชี้ไปที่ GitHub Releases เดียวกับ production
+provider: github
+owner: adminmdtc
+repo: StokIT-Web
+releaseType: release
