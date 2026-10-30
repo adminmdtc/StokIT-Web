@@ -1,6 +1,6 @@
 'use strict';
 
-const CACHE_NAME = 'it-stock-v34';
+const CACHE_NAME = 'it-stock-v35';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
