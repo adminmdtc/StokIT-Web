@@ -168,7 +168,9 @@ App.addTxRow = function (type) {
       <button type="button" class="btn btn-outline btn-sm" onclick="App.scanToSelectItem(this)" title="สแกนบาร์โค้ดวัสดุ">${icon('camera', 14)}</button>
     </div>
     ${serialCol}
-    <input class="input tx-qty" type="number" min="1" step="1" placeholder="จำนวน" required>
+    <!-- type=tel แทน type=number: iOS/Android พิมพ์เร็วเข้าช่อง number มักหลุดตัวเลข (500 → 5) เพราะ sanitize
+     ระหว่างพิมพ์ — tel ได้ keypad ตัวเลขแบบเดียวกัน แต่วาลิเดชันเองใน collectTxLines หลังบ้าน -->
+    <input class="input tx-qty" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="จำนวน" required>
     <button type="button" class="btn-icon danger" onclick="App.removeTxRow(this)" title="ลบรายการ">${icon('trash', 16)}</button>`;
   rows.appendChild(div);
 };

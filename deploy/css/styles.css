@@ -245,6 +245,22 @@ select.input option { padding: 10px 14px; font-size: 14px; }
 .tx-row.tracked .tx-qty { display: none; }
 .tx-row.tracked .tx-serial { display: block; }
 .tx-row .tx-serial.input { min-height: 42px; }
+/* มือถือ: แถวรายการซ้อน 2 ชั้น — ยทัสดุ/บาร์โค้ดเต็มแถวบน ช่องจำนวน/Serial เต็มความกว้างถัดมา
+   (เดิมบีบช่องจำนวนเหลือ ~36px เนื้อหาของช่องแทบเป็นศูนย์ พิมพ์เลขแล้วไม่ขึ้นบนจอมือถือ) */
+@media (max-width: 640px) {
+  .tx-row, .tx-row.issue {
+    grid-template-columns: minmax(0, 1fr) 42px;
+    grid-template-areas: "item item" "qty del";
+    row-gap: 8px;
+  }
+  .tx-item-wrap { grid-area: item; flex-wrap: wrap; min-width: 0; }
+  .tx-item-wrap .tx-barcode { width: 100%; order: 3; }
+  .tx-row .tx-qty { grid-area: qty; min-width: 0; }
+  .tx-row .tx-serial { grid-area: qty; min-width: 0; }
+  .tx-row > .btn-icon { grid-area: del; justify-self: center; }
+  /* >=16px กัน iOS ซูมตอนโฟกัส */
+  .tx-row .input, .tx-row select { font-size: 16px; }
+}
 
 .check {
   display: inline-flex; align-items: center; gap: 10px; 
